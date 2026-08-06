@@ -13,4 +13,12 @@ struct Order {
   constexpr bool operator==(const Order&) const = default;
 };
 
+struct MarketOrder {
+  OrderId id;
+  Side side;
+  Quantity quantity;
+
+  constexpr bool operator==(const MarketOrder&) const = default;
+};
+
 }  // namespace mercury

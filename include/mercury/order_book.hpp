@@ -20,15 +20,33 @@ class OrderBook {
     std::vector<Trade> trades;
 
     if (order.side == Side::Buy) {
-      match_buy(order, trades);
+      match_buy(order, trades, false);
     } else {
-      match_sell(order, trades);
+      match_sell(order, trades, false);
     }
 
     if (!order.quantity.is_zero()) {
       rest(std::move(order));
     }
 
+    return trades;
+  }
+
+  // Fill against available liquidity; any unfilled quantity is discarded.
+  std::vector<Trade> add_market(MarketOrder order) {
+    Order taker{
+        .id = order.id,
+        .side = order.side,
+        .price = Price{0},
+        .quantity = order.quantity,
+    };
+
+    std::vector<Trade> trades;
+    if (taker.side == Side::Buy) {
+      match_buy(taker, trades, true);
+    } else {
+      match_sell(taker, trades, true);
+    }
     return trades;
   }
 
@@ -88,10 +106,10 @@ class OrderBook {
     index_.emplace(id, loc);
   }
 
-  void match_buy(Order& taker, std::vector<Trade>& trades) {
+  void match_buy(Order& taker, std::vector<Trade>& trades, bool is_market) {
     while (!taker.quantity.is_zero() && !asks_.empty()) {
       auto level_it = asks_.begin();
-      if (level_it->first > taker.price) {
+      if (!is_market && level_it->first > taker.price) {
         break;
       }
       fill_level(level_it->second, taker, trades);
@@ -101,10 +119,10 @@ class OrderBook {
     }
   }
 
-  void match_sell(Order& taker, std::vector<Trade>& trades) {
+  void match_sell(Order& taker, std::vector<Trade>& trades, bool is_market) {
     while (!taker.quantity.is_zero() && !bids_.empty()) {
       auto level_it = bids_.begin();
-      if (level_it->first < taker.price) {
+      if (!is_market && level_it->first < taker.price) {
         break;
       }
       fill_level(level_it->second, taker, trades);
