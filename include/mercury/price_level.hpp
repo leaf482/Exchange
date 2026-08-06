@@ -39,6 +39,16 @@ class PriceLevel {
     orders_.pop_front();
   }
 
+  bool erase(OrderId id) {
+    for (auto it = orders_.begin(); it != orders_.end(); ++it) {
+      if (it->id == id) {
+        orders_.erase(it);
+        return true;
+      }
+    }
+    return false;
+  }
+
  private:
   Price price_;
   std::deque<Order> orders_;

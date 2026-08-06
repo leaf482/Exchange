@@ -57,3 +57,18 @@ TEST(PriceLevel, FifoOrder) {
 
   EXPECT_TRUE(level.empty());
 }
+
+TEST(PriceLevel, EraseById) {
+  PriceLevel level{Price{100}};
+  level.enqueue(make_order(1, Price{100}, 5));
+  level.enqueue(make_order(2, Price{100}, 7));
+  level.enqueue(make_order(3, Price{100}, 9));
+
+  EXPECT_TRUE(level.erase(OrderId{2}));
+  EXPECT_EQ(level.size(), 2u);
+  EXPECT_EQ(level.front().id, OrderId{1});
+
+  level.dequeue();
+  EXPECT_EQ(level.front().id, OrderId{3});
+  EXPECT_FALSE(level.erase(OrderId{2}));
+}

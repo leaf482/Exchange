@@ -4,6 +4,7 @@
 #include "mercury/trade.hpp"
 
 #include <algorithm>
+#include <cassert>
 #include <functional>
 #include <map>
 #include <optional>
@@ -31,6 +32,24 @@ class OrderBook {
     return trades;
   }
 
+  // Removes a resting order. Returns false if the id is not on the book.
+  bool cancel(OrderId id) {
+    const auto loc_it = index_.find(id);
+    if (loc_it == index_.end()) {
+      return false;
+    }
+
+    const RestingLocation loc = loc_it->second;
+    if (loc.side == Side::Buy) {
+      erase_from(bids_, loc.price, id);
+    } else {
+      erase_from(asks_, loc.price, id);
+    }
+
+    index_.erase(loc_it);
+    return true;
+  }
+
   std::optional<Price> best_bid() const {
     if (bids_.empty()) {
       return std::nullopt;
@@ -46,18 +65,27 @@ class OrderBook {
   }
 
  private:
+  struct RestingLocation {
+    Side side;
+    Price price;
+  };
+
   using BidLevels = std::map<Price, PriceLevel, std::greater<>>;
   using AskLevels = std::map<Price, PriceLevel>;
 
   void rest(Order order) {
+    const OrderId id = order.id;
+    const RestingLocation loc{order.side, order.price};
+
     if (order.side == Side::Buy) {
       auto [it, _] = bids_.try_emplace(order.price, order.price);
       it->second.enqueue(std::move(order));
-      return;
+    } else {
+      auto [it, _] = asks_.try_emplace(order.price, order.price);
+      it->second.enqueue(std::move(order));
     }
 
-    auto [it, _] = asks_.try_emplace(order.price, order.price);
-    it->second.enqueue(std::move(order));
+    index_.emplace(id, loc);
   }
 
   void match_buy(Order& taker, std::vector<Trade>& trades) {
@@ -86,7 +114,7 @@ class OrderBook {
     }
   }
 
-  static void fill_level(PriceLevel& level, Order& taker, std::vector<Trade>& trades) {
+  void fill_level(PriceLevel& level, Order& taker, std::vector<Trade>& trades) {
     while (!taker.quantity.is_zero() && !level.empty()) {
       Order& maker = level.front();
       const Quantity fill = std::min(taker.quantity, maker.quantity);
@@ -102,14 +130,27 @@ class OrderBook {
       maker.quantity = maker.quantity - fill;
 
       if (maker.quantity.is_zero()) {
+        index_.erase(maker.id);
         level.dequeue();
       }
+    }
+  }
+
+  template <typename Levels>
+  static void erase_from(Levels& levels, Price price, OrderId id) {
+    const auto level_it = levels.find(price);
+    assert(level_it != levels.end());
+    const bool erased = level_it->second.erase(id);
+    assert(erased);
+    if (level_it->second.empty()) {
+      levels.erase(level_it);
     }
   }
 
   // Best bid = highest price, best ask = lowest price.
   BidLevels bids_;
   AskLevels asks_;
+  std::map<OrderId, RestingLocation> index_;
 };
 
 }  // namespace mercury
