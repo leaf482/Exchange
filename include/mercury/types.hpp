@@ -19,6 +19,18 @@ class OrderId {
   std::uint64_t value_;
 };
 
+class AccountId {
+ public:
+  constexpr explicit AccountId(std::uint64_t value) noexcept : value_(value) {}
+
+  constexpr std::uint64_t value() const noexcept { return value_; }
+
+  constexpr auto operator<=>(const AccountId&) const = default;
+
+ private:
+  std::uint64_t value_;
+};
+
 // Price in integer ticks (smallest price increment). Never use floating-point.
 class Price {
  public:
