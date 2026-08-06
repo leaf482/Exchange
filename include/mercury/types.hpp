@@ -38,10 +38,16 @@ class Quantity {
 
   constexpr std::uint64_t value() const noexcept { return value_; }
 
+  constexpr bool is_zero() const noexcept { return value_ == 0; }
+
   constexpr auto operator<=>(const Quantity&) const = default;
 
  private:
   std::uint64_t value_;
 };
+
+constexpr Quantity operator-(Quantity lhs, Quantity rhs) {
+  return Quantity{lhs.value() - rhs.value()};
+}
 
 }  // namespace mercury
