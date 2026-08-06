@@ -3,6 +3,7 @@ add_executable(mercury_tests
   types_test.cpp
   order_test.cpp
   price_level_test.cpp
+  order_book_test.cpp
 )
 target_link_libraries(mercury_tests PRIVATE mercury GTest::gtest_main)
 mercury_set_warnings(mercury_tests)
