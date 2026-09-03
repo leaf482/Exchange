@@ -2,6 +2,10 @@
 
 #include "mercury/order_book.hpp"
 #include "mercury/positions.hpp"
+#include "mercury/risk.hpp"
+
+#include <utility>
+#include <vector>
 
 namespace mercury {
 
@@ -9,21 +13,40 @@ constexpr Side opposite_side(Side side) {
   return side == Side::Buy ? Side::Sell : Side::Buy;
 }
 
-// OrderBook + Positions: applies maker/taker fills after each match.
+struct SubmitResult {
+  RiskDecision decision{RiskDecision::Accept};
+  std::vector<Trade> trades{};
+};
+
+// OrderBook + Positions with optional pre-trade risk checks.
 class Engine {
  public:
-  std::vector<Trade> add(Order order) {
+  explicit Engine(RiskLimits limits = {}) : limits_(limits) {}
+
+  SubmitResult add(Order order) {
+    const RiskDecision decision = check_order(
+        limits_, positions_, order.account, order.side, order.quantity);
+    if (decision != RiskDecision::Accept) {
+      return SubmitResult{.decision = decision};
+    }
+
     const Side taker_side = order.side;
     auto trades = book_.add(std::move(order));
     apply_trades(taker_side, trades);
-    return trades;
+    return SubmitResult{.decision = RiskDecision::Accept, .trades = std::move(trades)};
   }
 
-  std::vector<Trade> add_market(MarketOrder order) {
+  SubmitResult add_market(MarketOrder order) {
+    const RiskDecision decision = check_order(
+        limits_, positions_, order.account, order.side, order.quantity);
+    if (decision != RiskDecision::Accept) {
+      return SubmitResult{.decision = decision};
+    }
+
     const Side taker_side = order.side;
     auto trades = book_.add_market(std::move(order));
     apply_trades(taker_side, trades);
-    return trades;
+    return SubmitResult{.decision = RiskDecision::Accept, .trades = std::move(trades)};
   }
 
   bool cancel(OrderId id) { return book_.cancel(id); }
@@ -41,6 +64,7 @@ class Engine {
     }
   }
 
+  RiskLimits limits_;
   OrderBook book_;
   Positions positions_;
 };

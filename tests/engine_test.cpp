@@ -9,6 +9,8 @@ using mercury::Order;
 using mercury::OrderId;
 using mercury::Price;
 using mercury::Quantity;
+using mercury::RiskDecision;
+using mercury::RiskLimits;
 using mercury::Side;
 
 namespace {
@@ -32,11 +34,12 @@ TEST(Engine, TradeUpdatesMakerAndTakerPositions) {
   const AccountId taker{2};
 
   engine.add(make_limit(1, Side::Sell, Price{100}, 5, maker));
-  const auto trades = engine.add(make_limit(2, Side::Buy, Price{100}, 5, taker));
+  const auto result = engine.add(make_limit(2, Side::Buy, Price{100}, 5, taker));
 
-  ASSERT_EQ(trades.size(), 1u);
-  EXPECT_EQ(trades[0].maker_account, maker);
-  EXPECT_EQ(trades[0].taker_account, taker);
+  ASSERT_EQ(result.decision, RiskDecision::Accept);
+  ASSERT_EQ(result.trades.size(), 1u);
+  EXPECT_EQ(result.trades[0].maker_account, maker);
+  EXPECT_EQ(result.trades[0].taker_account, taker);
 
   EXPECT_EQ(engine.positions().quantity(maker), -5);
   EXPECT_EQ(engine.positions().quantity(taker), 5);
@@ -47,14 +50,15 @@ TEST(Engine, MarketTradeUpdatesPositions) {
   Engine engine;
   engine.add(make_limit(1, Side::Buy, Price{120}, 4, AccountId{1}));
 
-  const auto trades = engine.add_market(MarketOrder{
+  const auto result = engine.add_market(MarketOrder{
       .id = OrderId{2},
       .side = Side::Sell,
       .quantity = Quantity{4},
       .account = AccountId{2},
   });
 
-  ASSERT_EQ(trades.size(), 1u);
+  ASSERT_EQ(result.decision, RiskDecision::Accept);
+  ASSERT_EQ(result.trades.size(), 1u);
   EXPECT_EQ(engine.positions().quantity(AccountId{1}), 4);
   EXPECT_EQ(engine.positions().quantity(AccountId{2}), -4);
 }
@@ -66,4 +70,35 @@ TEST(Engine, CancelDoesNotChangePositions) {
   EXPECT_TRUE(engine.cancel(OrderId{1}));
   EXPECT_EQ(engine.positions().quantity(AccountId{1}), 0);
   EXPECT_FALSE(engine.book().best_bid().has_value());
+}
+
+TEST(Engine, RejectsOrderExceedingRiskLimits) {
+  Engine engine{RiskLimits{
+      .max_order_quantity = Quantity{5},
+      .max_abs_position = 5,
+  }};
+
+  const auto result =
+      engine.add(make_limit(1, Side::Buy, Price{100}, 6, AccountId{1}));
+
+  EXPECT_EQ(result.decision, RiskDecision::OrderTooLarge);
+  EXPECT_TRUE(result.trades.empty());
+  EXPECT_FALSE(engine.book().best_bid().has_value());
+  EXPECT_EQ(engine.positions().quantity(AccountId{1}), 0);
+}
+
+TEST(Engine, RejectsPositionLimitWithoutMatching) {
+  Engine engine{RiskLimits{.max_abs_position = 5}};
+  engine.add(make_limit(1, Side::Sell, Price{100}, 5, AccountId{2}));
+  const auto filled =
+      engine.add(make_limit(2, Side::Buy, Price{100}, 5, AccountId{1}));
+  ASSERT_EQ(filled.decision, RiskDecision::Accept);
+  EXPECT_EQ(engine.positions().quantity(AccountId{1}), 5);
+
+  const auto result =
+      engine.add(make_limit(3, Side::Buy, Price{100}, 1, AccountId{1}));
+
+  EXPECT_EQ(result.decision, RiskDecision::PositionLimit);
+  EXPECT_TRUE(result.trades.empty());
+  EXPECT_EQ(engine.positions().quantity(AccountId{1}), 5);
 }
