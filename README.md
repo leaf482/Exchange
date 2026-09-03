@@ -5,7 +5,7 @@ Deterministic, low-latency exchange simulator and trading engine in C++23.
 ## Current scope
 
 Matching engine (limit/market/cancel), positions, pre-trade risk, event replay,
-and a first latency benchmark.
+latency benchmarks, and a Python event generator/analyzer.
 
 ## Build
 
@@ -26,3 +26,13 @@ cmake --build build-release --target mercury_bench
 ```
 
 See `docs/latency.md` for recorded numbers.
+
+## Python
+
+Stdlib only. From `python/`:
+
+```bash
+python -m mercury_sim.generate -n 100 --seed 1 -o events.jsonl
+python -m mercury_sim.analyze events.jsonl
+python -m unittest discover -s tests
+```
