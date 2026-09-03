@@ -1,0 +1,6 @@
+add_executable(mercury_bench engine_bench.cpp)
+target_link_libraries(mercury_bench PRIVATE mercury benchmark::benchmark)
+mercury_set_warnings(mercury_bench)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  target_compile_options(mercury_bench PRIVATE -Wno-c2y-extensions)
+endif()

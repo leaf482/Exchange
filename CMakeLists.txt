@@ -27,5 +27,19 @@ FetchContent_Declare(
 set(gtest_force_shared_crt ON CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
+set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_GTEST_TESTS OFF CACHE BOOL "" FORCE)
+set(BENCHMARK_ENABLE_WERROR OFF CACHE BOOL "" FORCE)
+FetchContent_Declare(
+  googlebenchmark
+  GIT_REPOSITORY https://github.com/google/benchmark.git
+  GIT_TAG v1.9.1
+)
+FetchContent_MakeAvailable(googlebenchmark)
+if(TARGET benchmark AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  target_compile_options(benchmark PRIVATE -Wno-c2y-extensions)
+endif()
+
 enable_testing()
 add_subdirectory(tests)
+add_subdirectory(benchmarks)
