@@ -21,6 +21,16 @@ double percentile(std::vector<double> values, double p) {
   return values[index];
 }
 
+void configure_latency(benchmark::internal::Benchmark* bench) {
+  bench->Unit(benchmark::kNanosecond)
+      ->Repetitions(20)
+      ->ReportAggregatesOnly(true)
+      ->ComputeStatistics("p95",
+                         [](const std::vector<double>& v) { return percentile(v, 0.95); })
+      ->ComputeStatistics("p99",
+                         [](const std::vector<double>& v) { return percentile(v, 0.99); });
+}
+
 Order make_order(std::uint64_t id, Side side, Price price, std::uint64_t qty,
                  AccountId account) {
   return Order{
@@ -33,6 +43,20 @@ Order make_order(std::uint64_t id, Side side, Price price, std::uint64_t qty,
 }
 
 }  // namespace
+
+// Non-crossing limit rests on the book.
+static void BM_RestLimit(benchmark::State& state) {
+  std::uint64_t id = 1;
+  for (auto _ : state) {
+    state.PauseTiming();
+    Engine engine;
+    auto order = make_order(id++, Side::Buy, Price{100}, 1, AccountId{1});
+    state.ResumeTiming();
+
+    auto result = engine.add(std::move(order));
+    benchmark::DoNotOptimize(result);
+  }
+}
 
 // One resting sell, then a crossing buy that fully fills.
 static void BM_MatchLimit(benchmark::State& state) {
@@ -49,15 +73,23 @@ static void BM_MatchLimit(benchmark::State& state) {
   }
 }
 
-BENCHMARK(BM_MatchLimit)
-    ->Unit(benchmark::kNanosecond)
-    ->Repetitions(20)
-    ->ReportAggregatesOnly(true)
-    ->ComputeStatistics("p95", [](const std::vector<double>& v) {
-      return percentile(v, 0.95);
-    })
-    ->ComputeStatistics("p99", [](const std::vector<double>& v) {
-      return percentile(v, 0.99);
-    });
+// Rest one order, then cancel it.
+static void BM_Cancel(benchmark::State& state) {
+  std::uint64_t id = 1;
+  for (auto _ : state) {
+    state.PauseTiming();
+    Engine engine;
+    const OrderId order_id{id};
+    engine.add(make_order(id++, Side::Buy, Price{100}, 1, AccountId{1}));
+    state.ResumeTiming();
+
+    bool cancelled = engine.cancel(order_id);
+    benchmark::DoNotOptimize(cancelled);
+  }
+}
+
+BENCHMARK(BM_RestLimit)->Apply(configure_latency);
+BENCHMARK(BM_MatchLimit)->Apply(configure_latency);
+BENCHMARK(BM_Cancel)->Apply(configure_latency);
 
 BENCHMARK_MAIN();
