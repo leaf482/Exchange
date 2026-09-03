@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 
+using mercury::AccountId;
 using mercury::Order;
 using mercury::OrderId;
 using mercury::Price;
@@ -14,12 +15,14 @@ TEST(Order, StoresFields) {
       .side = Side::Buy,
       .price = Price{1000},
       .quantity = Quantity{5},
+      .account = AccountId{7},
   };
 
   EXPECT_EQ(order.id, OrderId{42});
   EXPECT_EQ(order.side, Side::Buy);
   EXPECT_EQ(order.price, Price{1000});
   EXPECT_EQ(order.quantity, Quantity{5});
+  EXPECT_EQ(order.account, AccountId{7});
 }
 
 TEST(Order, Equality) {

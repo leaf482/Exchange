@@ -39,6 +39,7 @@ class OrderBook {
         .side = order.side,
         .price = Price{0},
         .quantity = order.quantity,
+        .account = order.account,
     };
 
     std::vector<Trade> trades;
@@ -140,6 +141,8 @@ class OrderBook {
       trades.push_back(Trade{
           .maker_id = maker.id,
           .taker_id = taker.id,
+          .maker_account = maker.account,
+          .taker_account = taker.account,
           .price = maker.price,
           .quantity = fill,
       });

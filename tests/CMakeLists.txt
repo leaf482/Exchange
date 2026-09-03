@@ -9,6 +9,7 @@ add_executable(mercury_tests
   order_book_market_test.cpp
   event_log_test.cpp
   positions_test.cpp
+  engine_test.cpp
 )
 target_link_libraries(mercury_tests PRIVATE mercury GTest::gtest_main)
 mercury_set_warnings(mercury_tests)
