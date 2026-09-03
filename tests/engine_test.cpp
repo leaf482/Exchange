@@ -102,3 +102,29 @@ TEST(Engine, RejectsPositionLimitWithoutMatching) {
   EXPECT_TRUE(result.trades.empty());
   EXPECT_EQ(engine.positions().quantity(AccountId{1}), 5);
 }
+
+TEST(Engine, RejectsWhenRestingExposureExceedsLimit) {
+  Engine engine{RiskLimits{.max_abs_position = 5}};
+  const auto rested =
+      engine.add(make_limit(1, Side::Buy, Price{100}, 5, AccountId{1}));
+  ASSERT_EQ(rested.decision, RiskDecision::Accept);
+  EXPECT_EQ(engine.book().best_bid(), Price{100});
+
+  const auto result =
+      engine.add(make_limit(2, Side::Buy, Price{100}, 1, AccountId{1}));
+
+  EXPECT_EQ(result.decision, RiskDecision::PositionLimit);
+  EXPECT_TRUE(result.trades.empty());
+  EXPECT_EQ(engine.positions().quantity(AccountId{1}), 0);
+}
+
+TEST(Engine, CancelFreesWorkingExposure) {
+  Engine engine{RiskLimits{.max_abs_position = 5}};
+  engine.add(make_limit(1, Side::Buy, Price{100}, 5, AccountId{1}));
+  EXPECT_TRUE(engine.cancel(OrderId{1}));
+
+  const auto result =
+      engine.add(make_limit(2, Side::Buy, Price{100}, 5, AccountId{1}));
+  EXPECT_EQ(result.decision, RiskDecision::Accept);
+  EXPECT_EQ(engine.book().best_bid(), Price{100});
+}

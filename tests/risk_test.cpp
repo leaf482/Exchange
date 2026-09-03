@@ -55,3 +55,23 @@ TEST(Risk, AllowsReducingPosition) {
   EXPECT_EQ(check_order(limits, positions, AccountId{1}, Side::Sell, Quantity{10}),
             RiskDecision::Accept);
 }
+
+TEST(Risk, RejectsWhenWorkingBuysExceedLimit) {
+  const RiskLimits limits{.max_abs_position = 5};
+  const Positions positions;
+
+  EXPECT_EQ(
+      check_order(limits, positions, AccountId{1}, Side::Buy, Quantity{1}, /*buy=*/5,
+                  /*sell=*/0),
+      RiskDecision::PositionLimit);
+}
+
+TEST(Risk, AcceptsSellAgainstWorkingBuys) {
+  const RiskLimits limits{.max_abs_position = 5};
+  const Positions positions;
+
+  EXPECT_EQ(
+      check_order(limits, positions, AccountId{1}, Side::Sell, Quantity{5}, /*buy=*/5,
+                  /*sell=*/0),
+      RiskDecision::Accept);
+}
