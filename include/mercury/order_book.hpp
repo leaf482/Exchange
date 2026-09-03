@@ -161,7 +161,7 @@ class OrderBook {
   static void erase_from(Levels& levels, Price price, OrderId id) {
     const auto level_it = levels.find(price);
     assert(level_it != levels.end());
-    const bool erased = level_it->second.erase(id);
+    [[maybe_unused]] const bool erased = level_it->second.erase(id);
     assert(erased);
     if (level_it->second.empty()) {
       levels.erase(level_it);

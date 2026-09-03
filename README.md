@@ -15,5 +15,14 @@ Requires CMake 3.20+ and a C++23 compiler (GCC or Clang).
 cmake -S . -B build
 cmake --build build
 ctest --test-dir build --output-on-failure
-./build/benchmarks/mercury_bench
 ```
+
+Release latency benchmark:
+
+```bash
+cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
+cmake --build build-release --target mercury_bench
+./build-release/benchmarks/mercury_bench
+```
+
+See `docs/latency.md` for recorded numbers.

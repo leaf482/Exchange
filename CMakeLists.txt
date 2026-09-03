@@ -36,8 +36,13 @@ FetchContent_Declare(
   GIT_TAG v1.9.1
 )
 FetchContent_MakeAvailable(googlebenchmark)
-if(TARGET benchmark AND CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
-  target_compile_options(benchmark PRIVATE -Wno-c2y-extensions)
+if(CMAKE_CXX_COMPILER_ID MATCHES "Clang|GNU")
+  if(TARGET benchmark)
+    target_compile_options(benchmark PRIVATE -Wno-c2y-extensions)
+  endif()
+  if(TARGET benchmark_main)
+    target_compile_options(benchmark_main PRIVATE -Wno-c2y-extensions)
+  endif()
 endif()
 
 enable_testing()
