@@ -6,9 +6,14 @@ repetitions, aggregates only.
 
 | Path | median | p95 | p99 |
 | --- | ---: | ---: | ---: |
-| Rest limit | 219 | 230 | 230 |
-| Match 1-lot limit | 238 | 257 | 257 |
-| Cancel | 158 | 162 | 162 |
+| Rest limit | 272 | 297 | 297 |
+| Match 1-lot limit | 259 | 270 | 270 |
+| Cancel | 176 | 184 | 184 |
+| Match deep book (8 levels) | 893 | 943 | 943 |
+| Match deep book (32 levels) | 3234 | 3284 | 3284 |
+| Match deep book (128 levels) | 13726 | 13921 | 13921 |
+
+Deep-book cases seed N ask levels (1 lot each) and sweep them with one buy.
 
 ```bash
 cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release

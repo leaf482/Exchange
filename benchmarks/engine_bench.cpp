@@ -88,8 +88,28 @@ static void BM_Cancel(benchmark::State& state) {
   }
 }
 
+// Sweep N ask price levels with one aggressive buy.
+static void BM_MatchDeepBook(benchmark::State& state) {
+  const int levels = static_cast<int>(state.range(0));
+  std::uint64_t id = 1;
+  for (auto _ : state) {
+    state.PauseTiming();
+    Engine engine;
+    for (int level = 0; level < levels; ++level) {
+      engine.add(make_order(id++, Side::Sell, Price{100 + level}, 1, AccountId{1}));
+    }
+    auto buy = make_order(id++, Side::Buy, Price{100 + levels - 1},
+                          static_cast<std::uint64_t>(levels), AccountId{2});
+    state.ResumeTiming();
+
+    auto result = engine.add(std::move(buy));
+    benchmark::DoNotOptimize(result);
+  }
+}
+
 BENCHMARK(BM_RestLimit)->Apply(configure_latency);
 BENCHMARK(BM_MatchLimit)->Apply(configure_latency);
 BENCHMARK(BM_Cancel)->Apply(configure_latency);
+BENCHMARK(BM_MatchDeepBook)->Apply(configure_latency)->Arg(8)->Arg(32)->Arg(128);
 
 BENCHMARK_MAIN();
