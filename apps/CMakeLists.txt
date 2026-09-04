@@ -1,0 +1,3 @@
+add_executable(jsonl_replay jsonl_replay.cpp)
+target_link_libraries(jsonl_replay PRIVATE mercury)
+mercury_set_warnings(jsonl_replay)

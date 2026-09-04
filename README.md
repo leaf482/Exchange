@@ -37,3 +37,9 @@ python -m mercury_sim.analyze events.jsonl
 python -m mercury_sim.replay events.jsonl
 python -m unittest discover -s tests
 ```
+
+Replay the same JSONL with the C++ engine:
+
+```bash
+./build/apps/jsonl_replay events.jsonl
+```

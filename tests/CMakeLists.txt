@@ -11,6 +11,7 @@ add_executable(mercury_tests
   positions_test.cpp
   engine_test.cpp
   risk_test.cpp
+  jsonl_test.cpp
 )
 target_link_libraries(mercury_tests PRIVATE mercury GTest::gtest_main)
 mercury_set_warnings(mercury_tests)
