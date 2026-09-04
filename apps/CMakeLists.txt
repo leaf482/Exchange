@@ -1,3 +1,7 @@
 add_executable(jsonl_replay jsonl_replay.cpp)
 target_link_libraries(jsonl_replay PRIVATE mercury)
 mercury_set_warnings(jsonl_replay)
+
+add_executable(book_snapshot book_snapshot.cpp)
+target_link_libraries(book_snapshot PRIVATE mercury)
+mercury_set_warnings(book_snapshot)

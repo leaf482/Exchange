@@ -44,4 +44,5 @@ Replay the same JSONL with the C++ engine:
 
 ```bash
 ./build/apps/jsonl_replay events.jsonl
+./build/apps/book_snapshot events.jsonl 5
 ```
