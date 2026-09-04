@@ -1,0 +1,30 @@
+# Roadmap
+
+Incremental work only. Correctness and measurement before concurrency.
+
+## Done
+
+- Limit / market / cancel matching (price-time priority, partial fills)
+- OrderId index, positions + PnL, pre-trade risk (incl. resting exposure)
+- Deterministic event log + JSONL replay (`jsonl_replay`)
+- Book depth snapshot (`book_snapshot`)
+- Latency benches (rest / match / cancel / deep book)
+- Python generate / replay / C++ parity compare
+
+## Next (small steps)
+
+1. Stop / IOC / FOK order types (no new resting unless intended)
+2. Multi-instrument books keyed by symbol
+3. Persist EventLog to disk and reload for exact replay
+4. Richer Python market sim (arrival process, inventory-aware agents)
+5. Optional pybind11 surface for `Engine` / `snapshot` (after more sim work)
+
+## Later
+
+- Threading / shard-by-symbol only after single-thread benches justify it
+- Networking, storage backends, UI — outside the matching core
+
+## Not planned soon
+
+Lock-free structures, Kafka/Redis, Docker-centric deploys, or rewriting the
+engine for throughput before profiling a concrete bottleneck.
