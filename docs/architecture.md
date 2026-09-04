@@ -13,6 +13,7 @@ python/mercury_sim         generate / replay / compare (parity with C++)
 Engine                     risk check -> OrderBook -> positions + working exposure
         |
         +-- OrderBook      bids/asks of PriceLevel (price-time priority)
+        |                    snapshot(depth) -> BookSnapshot
         +-- Positions      signed qty, realized / unrealized PnL
         +-- RiskLimits     max order size, max abs position (incl. resting)
         |

@@ -13,6 +13,42 @@
 
 namespace mercury {
 
+struct BookLevel {
+  Price price;
+  Quantity quantity;
+  std::size_t order_count = 0;
+
+  constexpr bool operator==(const BookLevel&) const = default;
+};
+
+struct BookSnapshot {
+  std::vector<BookLevel> bids;  // best bid first
+  std::vector<BookLevel> asks;  // best ask first
+
+  std::optional<Price> best_bid() const {
+    if (bids.empty()) {
+      return std::nullopt;
+    }
+    return bids.front().price;
+  }
+
+  std::optional<Price> best_ask() const {
+    if (asks.empty()) {
+      return std::nullopt;
+    }
+    return asks.front().price;
+  }
+
+  std::optional<std::int64_t> spread_ticks() const {
+    const auto bid = best_bid();
+    const auto ask = best_ask();
+    if (!bid || !ask) {
+      return std::nullopt;
+    }
+    return ask->ticks() - bid->ticks();
+  }
+};
+
 class OrderBook {
  public:
   // Match against the opposite side, then rest any remainder.
@@ -81,6 +117,31 @@ class OrderBook {
       return std::nullopt;
     }
     return asks_.begin()->first;
+  }
+
+  BookSnapshot snapshot(std::size_t max_levels) const {
+    BookSnapshot snap;
+    for (const auto& [price, level] : bids_) {
+      if (snap.bids.size() >= max_levels) {
+        break;
+      }
+      snap.bids.push_back(BookLevel{
+          .price = price,
+          .quantity = level.total_quantity(),
+          .order_count = level.size(),
+      });
+    }
+    for (const auto& [price, level] : asks_) {
+      if (snap.asks.size() >= max_levels) {
+        break;
+      }
+      snap.asks.push_back(BookLevel{
+          .price = price,
+          .quantity = level.total_quantity(),
+          .order_count = level.size(),
+      });
+    }
+    return snap;
   }
 
  private:

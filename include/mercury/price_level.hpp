@@ -49,6 +49,14 @@ class PriceLevel {
     return false;
   }
 
+  Quantity total_quantity() const {
+    std::uint64_t total = 0;
+    for (const Order& order : orders_) {
+      total += order.quantity.value();
+    }
+    return Quantity{total};
+  }
+
  private:
   Price price_;
   std::deque<Order> orders_;
