@@ -25,7 +25,8 @@ cmake --build build-release --target mercury_bench
 ./build-release/benchmarks/mercury_bench
 ```
 
-See `docs/latency.md` for recorded numbers.
+See `docs/architecture.md` for module layout and `docs/latency.md` for
+recorded numbers.
 
 ## Python
 
