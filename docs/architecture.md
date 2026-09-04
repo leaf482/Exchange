@@ -22,7 +22,8 @@ EventLog / jsonl           input events: limit, market, cancel
 
 ## Matching
 
-- Limit: match opposite side while prices cross, then rest remainder.
+- Limit: match opposite side while prices cross; GTC rests remainder,
+  IOC discards remainder, FOK requires a full immediate fill or rejects.
 - Market: match available liquidity, discard unfilled qty.
 - Cancel: remove resting order by `OrderId`.
 - Trade price is the maker (resting) price.

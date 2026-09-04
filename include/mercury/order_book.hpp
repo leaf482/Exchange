@@ -53,8 +53,12 @@ struct BookSnapshot {
 
 class OrderBook {
  public:
-  // Match against the opposite side, then rest any remainder.
+  // Match against the opposite side. GTC rests remainder; IOC/FOK do not.
   std::vector<Trade> add(Order order) {
+    if (order.tif == TimeInForce::Fok && !can_fully_fill(order)) {
+      return {};
+    }
+
     std::vector<Trade> trades;
 
     if (order.side == Side::Buy) {
@@ -63,7 +67,7 @@ class OrderBook {
       match_sell(order, trades, false);
     }
 
-    if (!order.quantity.is_zero()) {
+    if (order.tif == TimeInForce::Gtc && !order.quantity.is_zero()) {
       rest(std::move(order));
     }
 
@@ -218,6 +222,32 @@ class OrderBook {
         level.dequeue();
       }
     }
+  }
+
+  bool can_fully_fill(const Order& order) const {
+    std::uint64_t available = 0;
+    if (order.side == Side::Buy) {
+      for (const auto& [price, level] : asks_) {
+        if (price > order.price) {
+          break;
+        }
+        available += level.total_quantity().value();
+        if (available >= order.quantity.value()) {
+          return true;
+        }
+      }
+    } else {
+      for (const auto& [price, level] : bids_) {
+        if (price < order.price) {
+          break;
+        }
+        available += level.total_quantity().value();
+        if (available >= order.quantity.value()) {
+          return true;
+        }
+      }
+    }
+    return false;
   }
 
   template <typename Levels>

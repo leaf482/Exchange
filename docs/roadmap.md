@@ -5,6 +5,7 @@ Incremental work only. Correctness and measurement before concurrency.
 ## Done
 
 - Limit / market / cancel matching (price-time priority, partial fills)
+- IOC / FOK time-in-force on limit orders (GTC default)
 - OrderId index, positions + PnL, pre-trade risk (incl. resting exposure)
 - Deterministic event log + JSONL replay (`jsonl_replay`)
 - Book depth snapshot (`book_snapshot`)
@@ -13,7 +14,7 @@ Incremental work only. Correctness and measurement before concurrency.
 
 ## Next (small steps)
 
-1. Stop / IOC / FOK order types (no new resting unless intended)
+1. Stop orders (trigger -> limit/market)
 2. Multi-instrument books keyed by symbol
 3. Persist EventLog to disk and reload for exact replay
 4. Richer Python market sim (arrival process, inventory-aware agents)

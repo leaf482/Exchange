@@ -37,6 +37,7 @@ class Engine {
     const OrderId id = order.id;
     const Side taker_side = order.side;
     const Quantity original = order.quantity;
+    const TimeInForce tif = order.tif;
     auto trades = book_.add(std::move(order));
 
     Quantity filled{0};
@@ -46,7 +47,7 @@ class Engine {
     }
 
     const Quantity rested{original.value() - filled.value()};
-    if (!rested.is_zero()) {
+    if (tif == TimeInForce::Gtc && !rested.is_zero()) {
       add_open(id, account, taker_side, rested);
     }
 
