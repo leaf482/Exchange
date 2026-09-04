@@ -35,6 +35,7 @@ Stdlib only. From `python/`:
 python -m mercury_sim.generate -n 100 --seed 1 -o events.jsonl
 python -m mercury_sim.analyze events.jsonl
 python -m mercury_sim.replay events.jsonl
+python -m mercury_sim.compare events.jsonl
 python -m unittest discover -s tests
 ```
 

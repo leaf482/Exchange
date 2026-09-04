@@ -23,6 +23,16 @@ class Trade:
     price: int
     quantity: int
 
+    def to_dict(self) -> dict:
+        return {
+            "maker_id": self.maker_id,
+            "taker_id": self.taker_id,
+            "maker_account": self.maker_account,
+            "taker_account": self.taker_account,
+            "price": self.price,
+            "quantity": self.quantity,
+        }
+
 
 class OrderBook:
     def __init__(self) -> None:
