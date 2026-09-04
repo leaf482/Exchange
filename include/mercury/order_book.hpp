@@ -25,6 +25,8 @@ struct BookSnapshot {
   std::vector<BookLevel> bids;  // best bid first
   std::vector<BookLevel> asks;  // best ask first
 
+  bool operator==(const BookSnapshot&) const = default;
+
   std::optional<Price> best_bid() const {
     if (bids.empty()) {
       return std::nullopt;

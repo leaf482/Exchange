@@ -80,6 +80,8 @@ class Engine {
     return book_.cancel(id);
   }
 
+  BookSnapshot snapshot(std::size_t max_levels) const { return book_.snapshot(max_levels); }
+
   const OrderBook& book() const { return book_; }
 
   const Positions& positions() const { return positions_; }

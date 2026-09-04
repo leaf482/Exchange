@@ -128,3 +128,15 @@ TEST(Engine, CancelFreesWorkingExposure) {
   EXPECT_EQ(result.decision, RiskDecision::Accept);
   EXPECT_EQ(engine.book().best_bid(), Price{100});
 }
+
+TEST(Engine, SnapshotMatchesBook) {
+  Engine engine;
+  engine.add(make_limit(1, Side::Buy, Price{100}, 5, AccountId{1}));
+  engine.add(make_limit(2, Side::Sell, Price{110}, 3, AccountId{2}));
+
+  const auto snap = engine.snapshot(5);
+  EXPECT_EQ(snap, engine.book().snapshot(5));
+  EXPECT_EQ(snap.best_bid(), Price{100});
+  EXPECT_EQ(snap.best_ask(), Price{110});
+  EXPECT_EQ(snap.spread_ticks(), 10);
+}

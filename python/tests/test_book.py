@@ -1,6 +1,6 @@
 import unittest
 
-from mercury_sim.book import Order, OrderBook
+from mercury_sim.book import BookLevel, Order, OrderBook
 from mercury_sim.generate import generate_events
 from mercury_sim.replay import replay, summarize_trades
 
@@ -50,6 +50,21 @@ class BookTests(unittest.TestCase):
         self.assertEqual(spreads_a, spreads_b)
         summary = summarize_trades(first, spreads_a)
         self.assertGreaterEqual(summary["trades"], 0)
+
+    def test_snapshot_depth(self) -> None:
+        book = OrderBook()
+        book.add_limit(Order(id=1, side="buy", price=100, quantity=5))
+        book.add_limit(Order(id=2, side="buy", price=110, quantity=2))
+        book.add_limit(Order(id=3, side="buy", price=100, quantity=3))
+        book.add_limit(Order(id=4, side="sell", price=120, quantity=4))
+        book.add_limit(Order(id=5, side="sell", price=130, quantity=1))
+
+        snap = book.snapshot(2)
+        self.assertEqual(snap.bids[0], BookLevel(price=110, quantity=2, order_count=1))
+        self.assertEqual(snap.bids[1], BookLevel(price=100, quantity=8, order_count=2))
+        self.assertEqual(len(snap.asks), 2)
+        self.assertEqual(snap.asks[0].price, 120)
+        self.assertEqual(snap.spread_ticks(), 10)
 
 
 if __name__ == "__main__":

@@ -34,6 +34,32 @@ class Trade:
         }
 
 
+@dataclass(frozen=True)
+class BookLevel:
+    price: int
+    quantity: int
+    order_count: int
+
+
+@dataclass(frozen=True)
+class BookSnapshot:
+    bids: tuple[BookLevel, ...]  # best bid first
+    asks: tuple[BookLevel, ...]  # best ask first
+
+    def best_bid(self) -> Optional[int]:
+        return self.bids[0].price if self.bids else None
+
+    def best_ask(self) -> Optional[int]:
+        return self.asks[0].price if self.asks else None
+
+    def spread_ticks(self) -> Optional[int]:
+        bid = self.best_bid()
+        ask = self.best_ask()
+        if bid is None or ask is None:
+            return None
+        return ask - bid
+
+
 class OrderBook:
     def __init__(self) -> None:
         self._bids: dict[int, deque[Order]] = {}
@@ -77,6 +103,25 @@ class OrderBook:
         if bid is None or ask is None:
             return None
         return ask - bid
+
+    def snapshot(self, max_levels: int) -> BookSnapshot:
+        bids = tuple(
+            BookLevel(
+                price=price,
+                quantity=sum(order.quantity for order in self._bids[price]),
+                order_count=len(self._bids[price]),
+            )
+            for price in sorted(self._bids, reverse=True)[:max_levels]
+        )
+        asks = tuple(
+            BookLevel(
+                price=price,
+                quantity=sum(order.quantity for order in self._asks[price]),
+                order_count=len(self._asks[price]),
+            )
+            for price in sorted(self._asks)[:max_levels]
+        )
+        return BookSnapshot(bids=bids, asks=asks)
 
     def _rest(self, order: Order) -> None:
         levels = self._bids if order.side == "buy" else self._asks
