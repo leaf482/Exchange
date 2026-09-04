@@ -11,6 +11,7 @@ python/mercury_sim         generate / replay / compare (parity with C++)
         |
         v
 Engine                     risk check -> OrderBook -> positions + working exposure
+                           (+ pending StopOrder until last trade triggers)
         |
         +-- OrderBook      bids/asks of PriceLevel (price-time priority)
         |                    snapshot(depth) -> BookSnapshot
@@ -25,7 +26,9 @@ EventLog / jsonl           input events: limit, market, cancel
 - Limit: match opposite side while prices cross; GTC rests remainder,
   IOC discards remainder, FOK requires a full immediate fill or rejects.
 - Market: match available liquidity, discard unfilled qty.
-- Cancel: remove resting order by `OrderId`.
+- Stop: armed until last trade crosses `stop_price` (buy `>=`, sell `<=`),
+  then becomes limit (`limit_price`) or market; same id; cancel removes pending.
+- Cancel: remove resting order by `OrderId` (or pending stop).
 - Trade price is the maker (resting) price.
 
 ## Repo layout
