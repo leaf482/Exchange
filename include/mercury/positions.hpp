@@ -6,14 +6,16 @@
 #include <cstdint>
 #include <cstdlib>
 #include <map>
+#include <utility>
 
 namespace mercury {
 
-// Tracks signed position and PnL in tick * quantity units.
+// Tracks signed position and PnL in tick * quantity units, per (account, symbol).
 class Positions {
  public:
-  void fill(AccountId account, Side side, Price price, Quantity quantity) {
-    AccountState& state = accounts_[account];
+  void fill(AccountId account, Side side, Price price, Quantity quantity,
+            Symbol symbol = Symbol{0}) {
+    AccountState& state = accounts_[{account, symbol}];
     const std::int64_t fill_qty = static_cast<std::int64_t>(quantity.value());
     const std::int64_t px = price.ticks();
     const std::int64_t delta = (side == Side::Buy) ? fill_qty : -fill_qty;
@@ -44,20 +46,21 @@ class Positions {
     }
   }
 
-  std::int64_t quantity(AccountId account) const {
-    const auto it = accounts_.find(account);
+  std::int64_t quantity(AccountId account, Symbol symbol = Symbol{0}) const {
+    const auto it = accounts_.find({account, symbol});
     return it == accounts_.end() ? 0 : it->second.qty;
   }
 
   // Cumulative realized PnL in tick * quantity units.
-  std::int64_t realized_pnl(AccountId account) const {
-    const auto it = accounts_.find(account);
+  std::int64_t realized_pnl(AccountId account, Symbol symbol = Symbol{0}) const {
+    const auto it = accounts_.find({account, symbol});
     return it == accounts_.end() ? 0 : it->second.realized;
   }
 
   // Unrealized PnL at mark, in tick * quantity units.
-  std::int64_t unrealized_pnl(AccountId account, Price mark) const {
-    const auto it = accounts_.find(account);
+  std::int64_t unrealized_pnl(AccountId account, Price mark,
+                              Symbol symbol = Symbol{0}) const {
+    const auto it = accounts_.find({account, symbol});
     if (it == accounts_.end() || it->second.qty == 0) {
       return 0;
     }
@@ -75,7 +78,7 @@ class Positions {
     return (a > 0 && b > 0) || (a < 0 && b < 0);
   }
 
-  std::map<AccountId, AccountState> accounts_;
+  std::map<std::pair<AccountId, Symbol>, AccountState> accounts_;
 };
 
 }  // namespace mercury

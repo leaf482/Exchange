@@ -82,3 +82,15 @@ TEST(Positions, AverageCostOnAdd) {
   EXPECT_EQ(positions.quantity(AccountId{1}), 4);
   EXPECT_EQ(positions.unrealized_pnl(AccountId{1}, Price{110}), 0);
 }
+
+TEST(Positions, SymbolsAreIndependent) {
+  Positions positions;
+  const mercury::Symbol a{1};
+  const mercury::Symbol b{2};
+  positions.fill(AccountId{1}, Side::Buy, Price{100}, Quantity{5}, a);
+  positions.fill(AccountId{1}, Side::Sell, Price{50}, Quantity{3}, b);
+
+  EXPECT_EQ(positions.quantity(AccountId{1}, a), 5);
+  EXPECT_EQ(positions.quantity(AccountId{1}, b), -3);
+  EXPECT_EQ(positions.quantity(AccountId{1}), 0);
+}

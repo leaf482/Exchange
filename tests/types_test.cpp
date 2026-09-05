@@ -7,6 +7,7 @@ using mercury::AccountId;
 using mercury::Price;
 using mercury::Quantity;
 using mercury::Side;
+using mercury::Symbol;
 
 TEST(Types, SideValues) {
   EXPECT_NE(Side::Buy, Side::Sell);
@@ -27,6 +28,17 @@ TEST(Types, AccountIdValueAndEquality) {
   const AccountId a{1};
   const AccountId b{1};
   const AccountId c{2};
+
+  EXPECT_EQ(a.value(), 1u);
+  EXPECT_EQ(a, b);
+  EXPECT_NE(a, c);
+  EXPECT_LT(a, c);
+}
+
+TEST(Types, SymbolValueAndEquality) {
+  const Symbol a{1};
+  const Symbol b{1};
+  const Symbol c{2};
 
   EXPECT_EQ(a.value(), 1u);
   EXPECT_EQ(a, b);

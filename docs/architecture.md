@@ -10,15 +10,15 @@ apps/jsonl_replay          CLI: JSONL events -> trades
 python/mercury_sim         generate / replay / compare (parity with C++)
         |
         v
-Engine                     risk check -> OrderBook -> positions + working exposure
+Engine                     risk -> per-Symbol OrderBook -> positions + working
                            (+ pending StopOrder until last trade triggers)
         |
         +-- OrderBook      bids/asks of PriceLevel (price-time priority)
         |                    snapshot(depth) -> BookSnapshot
-        +-- Positions      signed qty, realized / unrealized PnL
-        +-- RiskLimits     max order size, max abs position (incl. resting)
+        +-- Positions      signed qty / PnL per (account, symbol)
+        +-- RiskLimits     max order size, max abs position (per symbol)
         |
-EventLog / jsonl           input events: limit, market, cancel
+EventLog / jsonl           input events: limit, market, cancel (optional symbol)
 ```
 
 ## Matching
@@ -28,7 +28,8 @@ EventLog / jsonl           input events: limit, market, cancel
 - Market: match available liquidity, discard unfilled qty.
 - Stop: armed until last trade crosses `stop_price` (buy `>=`, sell `<=`),
   then becomes limit (`limit_price`) or market; same id; cancel removes pending.
-- Cancel: remove resting order by `OrderId` (or pending stop).
+- Cancel: remove resting order / pending stop by `OrderId` (routed by symbol).
+- Instruments are isolated: orders and last-trade stops never cross symbols.
 - Trade price is the maker (resting) price.
 
 ## Repo layout

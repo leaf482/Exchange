@@ -82,6 +82,8 @@ class OrderBook {
         .price = Price{0},
         .quantity = order.quantity,
         .account = order.account,
+        .tif = TimeInForce::Gtc,
+        .symbol = order.symbol,
     };
 
     std::vector<Trade> trades;
@@ -212,6 +214,7 @@ class OrderBook {
           .taker_account = taker.account,
           .price = maker.price,
           .quantity = fill,
+          .symbol = taker.symbol,
       });
 
       taker.quantity = taker.quantity - fill;

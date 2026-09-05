@@ -31,6 +31,19 @@ class AccountId {
   std::uint64_t value_;
 };
 
+// Opaque instrument id. Matching and positions are per-symbol.
+class Symbol {
+ public:
+  constexpr explicit Symbol(std::uint64_t value) noexcept : value_(value) {}
+
+  constexpr std::uint64_t value() const noexcept { return value_; }
+
+  constexpr auto operator<=>(const Symbol&) const = default;
+
+ private:
+  std::uint64_t value_;
+};
+
 // Price in integer ticks (smallest price increment). Never use floating-point.
 class Price {
  public:

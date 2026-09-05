@@ -96,6 +96,9 @@ inline Event parse_event_line(std::string_view line) {
         .quantity = Quantity{static_cast<std::uint64_t>(detail::require_int(line, "quantity"))},
         .account = AccountId{static_cast<std::uint64_t>(
             detail::field(line, "account") ? detail::require_int(line, "account") : 0)},
+        .tif = TimeInForce::Gtc,
+        .symbol = Symbol{static_cast<std::uint64_t>(
+            detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
     };
   }
   if (type == "market") {
@@ -105,6 +108,8 @@ inline Event parse_event_line(std::string_view line) {
         .quantity = Quantity{static_cast<std::uint64_t>(detail::require_int(line, "quantity"))},
         .account = AccountId{static_cast<std::uint64_t>(
             detail::field(line, "account") ? detail::require_int(line, "account") : 0)},
+        .symbol = Symbol{static_cast<std::uint64_t>(
+            detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
     };
   }
   if (type == "cancel") {

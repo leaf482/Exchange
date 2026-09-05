@@ -20,14 +20,15 @@ struct RiskLimits {
   std::uint64_t max_abs_position{0};
 };
 
-// working_buy / working_sell are resting open quantities for the account.
+// working_buy / working_sell are resting open quantities for the account+symbol.
 inline RiskDecision check_order(const RiskLimits& limits,
                                 const Positions& positions,
                                 AccountId account,
                                 Side side,
                                 Quantity quantity,
                                 std::uint64_t working_buy = 0,
-                                std::uint64_t working_sell = 0) {
+                                std::uint64_t working_sell = 0,
+                                Symbol symbol = Symbol{0}) {
   if (quantity.is_zero()) {
     return RiskDecision::OrderTooLarge;
   }
@@ -38,7 +39,7 @@ inline RiskDecision check_order(const RiskLimits& limits,
   }
 
   if (limits.max_abs_position != 0) {
-    const std::int64_t pos = positions.quantity(account);
+    const std::int64_t pos = positions.quantity(account, symbol);
     const std::int64_t qty = static_cast<std::int64_t>(quantity.value());
     const std::int64_t open_buy = static_cast<std::int64_t>(working_buy);
     const std::int64_t open_sell = static_cast<std::int64_t>(working_sell);

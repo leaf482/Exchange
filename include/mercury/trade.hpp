@@ -11,6 +11,7 @@ struct Trade {
   AccountId taker_account{0};
   Price price;
   Quantity quantity;
+  Symbol symbol{0};
 
   constexpr bool operator==(const Trade&) const = default;
 };

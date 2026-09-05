@@ -15,6 +15,7 @@ struct Order {
   Quantity quantity;
   AccountId account{0};
   TimeInForce tif{TimeInForce::Gtc};
+  Symbol symbol{0};
 
   constexpr bool operator==(const Order&) const = default;
 };
@@ -24,6 +25,7 @@ struct MarketOrder {
   Side side;
   Quantity quantity;
   AccountId account{0};
+  Symbol symbol{0};
 
   constexpr bool operator==(const MarketOrder&) const = default;
 };
@@ -37,6 +39,7 @@ struct StopOrder {
   AccountId account{0};
   std::optional<Price> limit_price;  // nullopt => market on trigger
   TimeInForce tif{TimeInForce::Gtc};  // used when limit_price is set
+  Symbol symbol{0};
 
   constexpr bool operator==(const StopOrder&) const = default;
 };
