@@ -7,7 +7,7 @@ Single-threaded, deterministic matching core. Prices and quantities are integers
 
 ```
 apps/jsonl_replay          CLI: JSONL events -> trades
-python/mercury_sim         generate / replay / compare (parity with C++)
+python/mercury_sim         generate / market sim / replay / compare
         |
         v
 Engine                     risk -> per-Symbol OrderBook -> positions + working

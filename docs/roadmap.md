@@ -13,11 +13,11 @@ Incremental work only. Correctness and measurement before concurrency.
 - Book depth snapshot (`book_snapshot`)
 - Latency benches (rest / match / cancel / deep book)
 - Python generate / replay / C++ parity compare
+- Python market sim (Bernoulli arrivals, inventory-skewed maker + takers)
 
 ## Next (small steps)
 
-1. Richer Python market sim (arrival process, inventory-aware agents)
-2. Optional pybind11 surface for `Engine` / `snapshot` (after more sim work)
+1. Optional pybind11 surface for `Engine` / `snapshot`
 
 ## Later
 

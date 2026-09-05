@@ -91,6 +91,9 @@ class OrderBook:
         del self._index[order_id]
         return True
 
+    def is_live(self, order_id: int) -> bool:
+        return order_id in self._index
+
     def best_bid(self) -> Optional[int]:
         return max(self._bids) if self._bids else None
 

@@ -4,6 +4,7 @@ import argparse
 import random
 
 from mercury_sim.events import CancelEvent, Event, LimitEvent, MarketEvent, write_jsonl
+from mercury_sim.sim import SimConfig, simulate_market
 
 
 def generate_events(count: int, seed: int = 1, start_price: int = 10_000) -> list[Event]:
@@ -56,10 +57,33 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("-n", "--count", type=int, default=100)
     parser.add_argument("--seed", type=int, default=1)
     parser.add_argument("--start-price", type=int, default=10_000)
+    parser.add_argument(
+        "--mode",
+        choices=("random", "market"),
+        default="random",
+        help="random noise vs inventory-aware market sim",
+    )
+    parser.add_argument(
+        "--arrival-rate",
+        type=float,
+        default=0.55,
+        help="Bernoulli arrival probability per tick (market mode)",
+    )
     parser.add_argument("-o", "--output", required=True)
     args = parser.parse_args(argv)
 
-    events = generate_events(args.count, seed=args.seed, start_price=args.start_price)
+    if args.mode == "market":
+        events = simulate_market(
+            SimConfig(
+                n_events=args.count,
+                seed=args.seed,
+                start_price=args.start_price,
+                arrival_rate=args.arrival_rate,
+            )
+        )
+    else:
+        events = generate_events(args.count, seed=args.seed, start_price=args.start_price)
+
     write_jsonl(args.output, events)
     print(f"wrote {len(events)} events to {args.output}")
 
