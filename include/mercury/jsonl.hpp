@@ -4,11 +4,15 @@
 
 #include <cctype>
 #include <cstdint>
+#include <filesystem>
+#include <fstream>
 #include <optional>
 #include <sstream>
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <type_traits>
+#include <variant>
 
 namespace mercury {
 namespace jsonl {
@@ -79,6 +83,40 @@ inline Side parse_side(std::string_view side) {
   throw std::runtime_error("invalid side");
 }
 
+inline const char* format_side(Side side) {
+  return side == Side::Buy ? "buy" : "sell";
+}
+
+inline TimeInForce parse_tif(std::string_view tif) {
+  if (tif == "gtc") {
+    return TimeInForce::Gtc;
+  }
+  if (tif == "ioc") {
+    return TimeInForce::Ioc;
+  }
+  if (tif == "fok") {
+    return TimeInForce::Fok;
+  }
+  throw std::runtime_error("invalid tif");
+}
+
+inline const char* format_tif(TimeInForce tif) {
+  switch (tif) {
+    case TimeInForce::Gtc:
+      return "gtc";
+    case TimeInForce::Ioc:
+      return "ioc";
+    case TimeInForce::Fok:
+      return "fok";
+  }
+  return "gtc";
+}
+
+inline TimeInForce optional_tif(std::string_view line) {
+  const auto value = field(line, "tif");
+  return value ? parse_tif(*value) : TimeInForce::Gtc;
+}
+
 }  // namespace detail
 
 inline Event parse_event_line(std::string_view line) {
@@ -96,7 +134,7 @@ inline Event parse_event_line(std::string_view line) {
         .quantity = Quantity{static_cast<std::uint64_t>(detail::require_int(line, "quantity"))},
         .account = AccountId{static_cast<std::uint64_t>(
             detail::field(line, "account") ? detail::require_int(line, "account") : 0)},
-        .tif = TimeInForce::Gtc,
+        .tif = detail::optional_tif(line),
         .symbol = Symbol{static_cast<std::uint64_t>(
             detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
     };
@@ -120,6 +158,35 @@ inline Event parse_event_line(std::string_view line) {
   throw std::runtime_error("unknown event type: " + type);
 }
 
+inline std::string format_event_line(const Event& event) {
+  return std::visit(
+      [](const auto& payload) -> std::string {
+        using T = std::decay_t<decltype(payload)>;
+        std::ostringstream out;
+        if constexpr (std::is_same_v<T, Order>) {
+          out << "{\"type\":\"limit\""
+              << ",\"id\":" << payload.id.value()
+              << ",\"side\":\"" << detail::format_side(payload.side) << '"'
+              << ",\"price\":" << payload.price.ticks()
+              << ",\"quantity\":" << payload.quantity.value()
+              << ",\"account\":" << payload.account.value()
+              << ",\"tif\":\"" << detail::format_tif(payload.tif) << '"'
+              << ",\"symbol\":" << payload.symbol.value() << '}';
+        } else if constexpr (std::is_same_v<T, MarketOrder>) {
+          out << "{\"type\":\"market\""
+              << ",\"id\":" << payload.id.value()
+              << ",\"side\":\"" << detail::format_side(payload.side) << '"'
+              << ",\"quantity\":" << payload.quantity.value()
+              << ",\"account\":" << payload.account.value()
+              << ",\"symbol\":" << payload.symbol.value() << '}';
+        } else {
+          out << "{\"type\":\"cancel\",\"id\":" << payload.id.value() << '}';
+        }
+        return out.str();
+      },
+      event);
+}
+
 inline EventLog load_event_log(std::istream& input) {
   EventLog log;
   std::string line;
@@ -135,6 +202,28 @@ inline EventLog load_event_log(std::istream& input) {
 inline EventLog load_event_log(std::string_view text) {
   std::istringstream input{std::string(text)};
   return load_event_log(input);
+}
+
+inline EventLog load_event_log_file(const std::filesystem::path& path) {
+  std::ifstream input(path);
+  if (!input) {
+    throw std::runtime_error("failed to open event log: " + path.string());
+  }
+  return load_event_log(input);
+}
+
+inline void save_event_log(std::ostream& output, const EventLog& log) {
+  for (const Event& event : log.events()) {
+    output << format_event_line(event) << '\n';
+  }
+}
+
+inline void save_event_log_file(const std::filesystem::path& path, const EventLog& log) {
+  std::ofstream output(path, std::ios::binary | std::ios::trunc);
+  if (!output) {
+    throw std::runtime_error("failed to write event log: " + path.string());
+  }
+  save_event_log(output, log);
 }
 
 }  // namespace jsonl

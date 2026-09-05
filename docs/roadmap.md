@@ -9,16 +9,15 @@ Incremental work only. Correctness and measurement before concurrency.
 - Stop orders (last-trade trigger → limit or market)
 - Multi-instrument books keyed by `Symbol` (positions/risk per symbol)
 - OrderId index, positions + PnL, pre-trade risk (incl. resting exposure)
-- Deterministic event log + JSONL replay (`jsonl_replay`)
+- Deterministic event log + JSONL save/load + replay (`jsonl_replay`)
 - Book depth snapshot (`book_snapshot`)
 - Latency benches (rest / match / cancel / deep book)
 - Python generate / replay / C++ parity compare
 
 ## Next (small steps)
 
-1. Persist EventLog to disk and reload for exact replay
-2. Richer Python market sim (arrival process, inventory-aware agents)
-3. Optional pybind11 surface for `Engine` / `snapshot` (after more sim work)
+1. Richer Python market sim (arrival process, inventory-aware agents)
+2. Optional pybind11 surface for `Engine` / `snapshot` (after more sim work)
 
 ## Later
 

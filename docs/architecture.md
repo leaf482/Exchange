@@ -18,7 +18,7 @@ Engine                     risk -> per-Symbol OrderBook -> positions + working
         +-- Positions      signed qty / PnL per (account, symbol)
         +-- RiskLimits     max order size, max abs position (per symbol)
         |
-EventLog / jsonl           input events: limit, market, cancel (optional symbol)
+EventLog / jsonl           save/load JSONL for exact replay (limit/market/cancel)
 ```
 
 ## Matching
@@ -31,6 +31,8 @@ EventLog / jsonl           input events: limit, market, cancel (optional symbol)
 - Cancel: remove resting order / pending stop by `OrderId` (routed by symbol).
 - Instruments are isolated: orders and last-trade stops never cross symbols.
 - Trade price is the maker (resting) price.
+- Persistence: `jsonl::save_event_log_file` / `load_event_log_file` round-trip
+  the event stream (including `tif` / `symbol`); replay is deterministic.
 
 ## Repo layout
 
