@@ -49,3 +49,8 @@ enable_testing()
 add_subdirectory(tests)
 add_subdirectory(benchmarks)
 add_subdirectory(apps)
+
+option(MERCURY_BUILD_PYTHON "Build optional pybind11 Engine bindings" OFF)
+if(MERCURY_BUILD_PYTHON)
+  add_subdirectory(python/bindings)
+endif()

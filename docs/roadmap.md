@@ -14,10 +14,11 @@ Incremental work only. Correctness and measurement before concurrency.
 - Latency benches (rest / match / cancel / deep book)
 - Python generate / replay / C++ parity compare
 - Python market sim (Bernoulli arrivals, inventory-skewed maker + takers)
+- Optional pybind11 `mercury_engine` module (`Engine` / `snapshot`)
 
 ## Next (small steps)
 
-1. Optional pybind11 surface for `Engine` / `snapshot`
+_(core roadmap items above are done; pick from Later as needed)_
 
 ## Later
 

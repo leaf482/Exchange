@@ -41,6 +41,15 @@ python -m mercury_sim.compare events.jsonl
 python -m unittest discover -s tests
 ```
 
+Optional C++ Engine bindings (pybind11):
+
+```bash
+cmake -S . -B build -DMERCURY_BUILD_PYTHON=ON
+cmake --build build --target mercury_engine
+# module lands in python/mercury_engine.*
+python -c "import mercury_engine; e=mercury_engine.Engine(); print(e.snapshot())"
+```
+
 Replay the same JSONL with the C++ engine:
 
 ```bash
