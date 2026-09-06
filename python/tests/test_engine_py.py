@@ -29,6 +29,20 @@ class TifTests(unittest.TestCase):
         self.assertEqual(book.best_ask(), 100)
 
 
+class StpTests(unittest.TestCase):
+    def test_cancel_resting_self_trade(self) -> None:
+        book = OrderBook(stp="cancel_resting")
+        book.add_limit(Order(id=1, side="sell", price=100, quantity=5, account=7))
+        book.add_limit(Order(id=2, side="sell", price=100, quantity=4, account=8))
+        trades = book.add_limit(
+            Order(id=3, side="buy", price=100, quantity=4, account=7)
+        )
+        self.assertEqual(len(trades), 1)
+        self.assertEqual(trades[0].maker_id, 2)
+        self.assertEqual(book.take_stp_cancels(), [1])
+        self.assertIsNone(book.best_ask())
+
+
 class EngineStopTests(unittest.TestCase):
     def test_stop_fires_on_last_trade(self) -> None:
         engine = Engine()

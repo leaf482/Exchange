@@ -63,12 +63,20 @@ class BookSnapshot:
 
 
 class OrderBook:
-    def __init__(self) -> None:
+    def __init__(self, stp: Literal["off", "cancel_resting"] = "off") -> None:
         self._bids: dict[int, deque[Order]] = {}
         self._asks: dict[int, deque[Order]] = {}
         self._index: dict[int, tuple[Literal["buy", "sell"], int]] = {}
+        self._stp = stp
+        self._stp_cancels: list[int] = []
+
+    def take_stp_cancels(self) -> list[int]:
+        cancels = self._stp_cancels
+        self._stp_cancels = []
+        return cancels
 
     def add_limit(self, order: Order) -> list[Trade]:
+        self._stp_cancels = []
         if order.tif == "fok" and not self._can_fully_fill(order):
             return []
 
@@ -78,6 +86,7 @@ class OrderBook:
         return trades
 
     def add_market(self, order: Order) -> list[Trade]:
+        self._stp_cancels = []
         return self._match(order, is_market=True)
 
     def cancel(self, order_id: int) -> bool:
@@ -137,17 +146,32 @@ class OrderBook:
             for price in sorted(self._asks):
                 if price > order.price:
                     break
-                available += sum(o.quantity for o in self._asks[price])
+                available += self._matchable_qty(self._asks[price], order.account)
                 if available >= order.quantity:
                     return True
         else:
             for price in sorted(self._bids, reverse=True):
                 if price < order.price:
                     break
-                available += sum(o.quantity for o in self._bids[price])
+                available += self._matchable_qty(self._bids[price], order.account)
                 if available >= order.quantity:
                     return True
         return False
+
+    def _matchable_qty(self, queue: deque[Order], taker_account: int) -> int:
+        total = 0
+        for order in queue:
+            if self._is_self_trade(order.account, taker_account):
+                continue
+            total += order.quantity
+        return total
+
+    def _is_self_trade(self, maker_account: int, taker_account: int) -> bool:
+        return (
+            self._stp == "cancel_resting"
+            and maker_account == taker_account
+            and maker_account != 0
+        )
 
     def _rest(self, order: Order) -> None:
         levels = self._bids if order.side == "buy" else self._asks
@@ -180,6 +204,14 @@ class OrderBook:
         queue = levels[price]
         while taker.quantity > 0 and queue:
             maker = queue[0]
+            if self._is_self_trade(maker.account, taker.account):
+                self._stp_cancels.append(maker.id)
+                queue.popleft()
+                del self._index[maker.id]
+                if not queue:
+                    del levels[price]
+                continue
+
             fill = min(taker.quantity, maker.quantity)
             trades.append(
                 Trade(
@@ -196,5 +228,5 @@ class OrderBook:
             if maker.quantity == 0:
                 queue.popleft()
                 del self._index[maker.id]
-        if not queue:
+        if price in levels and not levels[price]:
             del levels[price]

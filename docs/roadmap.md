@@ -15,6 +15,7 @@ Incremental work only. Correctness and measurement before concurrency.
 - Python generate / replay / C++ parity compare (tif + stop)
 - Python market sim (Bernoulli arrivals, inventory-skewed maker + takers)
 - Optional pybind11 `mercury_engine` module (`Engine` / `snapshot`)
+- Self-trade prevention (`CancelResting`; account 0 exempt; default off)
 
 ## Next (small steps)
 

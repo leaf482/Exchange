@@ -57,6 +57,20 @@ class PriceLevel {
     return Quantity{total};
   }
 
+  // Quantity that can fill `taker` under the given STP policy.
+  Quantity matchable_quantity(AccountId taker_account,
+                              SelfTradePrevention stp) const {
+    std::uint64_t total = 0;
+    for (const Order& order : orders_) {
+      if (stp == SelfTradePrevention::CancelResting &&
+          order.account == taker_account && order.account.value() != 0) {
+        continue;
+      }
+      total += order.quantity.value();
+    }
+    return Quantity{total};
+  }
+
  private:
   Price price_;
   std::deque<Order> orders_;

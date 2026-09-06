@@ -24,7 +24,9 @@ struct SubmitResult {
 // Per-symbol OrderBooks + shared Positions, with risk checks and stop orders.
 class Engine {
  public:
-  explicit Engine(RiskLimits limits = {}) : limits_(limits) {}
+  explicit Engine(RiskLimits limits = {},
+                  SelfTradePrevention stp = SelfTradePrevention::Off)
+      : limits_(limits), stp_(stp) {}
 
   SubmitResult add(Order order) {
     const Symbol symbol = order.symbol;
@@ -124,12 +126,19 @@ class Engine {
   };
 
   struct Instrument {
+    explicit Instrument(SelfTradePrevention stp = SelfTradePrevention::Off)
+        : book(stp) {}
+
     OrderBook book;
     std::vector<StopOrder> stops;
     std::optional<Price> last_trade_price;
   };
 
-  Instrument& instrument(Symbol symbol) { return instruments_[symbol]; }
+  Instrument& instrument(Symbol symbol) {
+    const auto [it, inserted] = instruments_.try_emplace(symbol, stp_);
+    (void)inserted;
+    return it->second;
+  }
 
   const Instrument* find_instrument(Symbol symbol) const {
     const auto it = instruments_.find(symbol);
@@ -301,6 +310,7 @@ class Engine {
     const Quantity original = order.quantity;
     const TimeInForce tif = order.tif;
     auto trades = instrument(symbol).book.add(std::move(order));
+    clear_stp_cancels(symbol);
 
     Quantity filled{0};
     for (const Trade& trade : trades) {
@@ -330,6 +340,7 @@ class Engine {
 
     const Side taker_side = order.side;
     auto trades = instrument(symbol).book.add_market(std::move(order));
+    clear_stp_cancels(symbol);
     for (const Trade& trade : trades) {
       reduce_open(trade.maker_id, trade.quantity);
     }
@@ -337,7 +348,18 @@ class Engine {
     return SubmitResult{.decision = RiskDecision::Accept, .trades = std::move(trades)};
   }
 
+  void clear_stp_cancels(Symbol symbol) {
+    auto cancels = instrument(symbol).book.take_stp_cancels();
+    for (const OrderId id : cancels) {
+      const auto it = open_orders_.find(id);
+      if (it != open_orders_.end()) {
+        reduce_open(id, it->second.remaining);
+      }
+    }
+  }
+
   RiskLimits limits_;
+  SelfTradePrevention stp_;
   std::map<Symbol, Instrument> instruments_;
   Positions positions_;
   std::map<OrderId, OpenOrder> open_orders_;

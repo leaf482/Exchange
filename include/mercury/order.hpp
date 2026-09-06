@@ -8,6 +8,10 @@ namespace mercury {
 
 enum class TimeInForce : std::uint8_t { Gtc, Ioc, Fok };
 
+// When enabled, a taker does not trade against its own resting orders.
+// CancelResting: drop the resting order and keep matching.
+enum class SelfTradePrevention : std::uint8_t { Off, CancelResting };
+
 struct Order {
   OrderId id;
   Side side;

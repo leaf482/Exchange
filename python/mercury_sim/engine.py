@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Optional
+from typing import Literal, Optional
 
 from mercury_sim.book import Order, OrderBook, Trade
 from mercury_sim.events import Event, LimitEvent, MarketEvent, StopEvent
@@ -15,14 +15,15 @@ class _PendingStop:
 class Engine:
     """Python twin of C++ Engine: per-symbol books + last-trade stop triggers."""
 
-    def __init__(self) -> None:
+    def __init__(self, stp: Literal["off", "cancel_resting"] = "off") -> None:
+        self._stp = stp
         self._books: dict[int, OrderBook] = {}
         self._stops: dict[int, list[_PendingStop]] = {}
         self._last_trade: dict[int, int] = {}
         self._stop_index: dict[int, int] = {}  # order id -> symbol
 
     def book(self, symbol: int = 0) -> OrderBook:
-        return self._books.setdefault(symbol, OrderBook())
+        return self._books.setdefault(symbol, OrderBook(stp=self._stp))
 
     def last_trade_price(self, symbol: int = 0) -> Optional[int]:
         return self._last_trade.get(symbol)

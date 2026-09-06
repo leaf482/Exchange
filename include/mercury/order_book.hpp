@@ -53,8 +53,15 @@ struct BookSnapshot {
 
 class OrderBook {
  public:
+  explicit OrderBook(SelfTradePrevention stp = SelfTradePrevention::Off) : stp_(stp) {}
+
+  void set_self_trade_prevention(SelfTradePrevention stp) { stp_ = stp; }
+
+  SelfTradePrevention self_trade_prevention() const { return stp_; }
+
   // Match against the opposite side. GTC rests remainder; IOC/FOK do not.
   std::vector<Trade> add(Order order) {
+    stp_cancels_.clear();
     if (order.tif == TimeInForce::Fok && !can_fully_fill(order)) {
       return {};
     }
@@ -76,6 +83,7 @@ class OrderBook {
 
   // Fill against available liquidity; any unfilled quantity is discarded.
   std::vector<Trade> add_market(MarketOrder order) {
+    stp_cancels_.clear();
     Order taker{
         .id = order.id,
         .side = order.side,
@@ -94,6 +102,9 @@ class OrderBook {
     }
     return trades;
   }
+
+  // OrderIds cancelled by self-trade prevention during the last add/add_market.
+  std::vector<OrderId> take_stp_cancels() { return std::move(stp_cancels_); }
 
   // Removes a resting order. Returns false if the id is not on the book.
   bool cancel(OrderId id) {
@@ -205,6 +216,13 @@ class OrderBook {
   void fill_level(PriceLevel& level, Order& taker, std::vector<Trade>& trades) {
     while (!taker.quantity.is_zero() && !level.empty()) {
       Order& maker = level.front();
+      if (is_self_trade(maker, taker)) {
+        stp_cancels_.push_back(maker.id);
+        index_.erase(maker.id);
+        level.dequeue();
+        continue;
+      }
+
       const Quantity fill = std::min(taker.quantity, maker.quantity);
 
       trades.push_back(Trade{
@@ -227,6 +245,11 @@ class OrderBook {
     }
   }
 
+  bool is_self_trade(const Order& maker, const Order& taker) const {
+    return stp_ == SelfTradePrevention::CancelResting &&
+           maker.account == taker.account && maker.account.value() != 0;
+  }
+
   bool can_fully_fill(const Order& order) const {
     std::uint64_t available = 0;
     if (order.side == Side::Buy) {
@@ -234,7 +257,7 @@ class OrderBook {
         if (price > order.price) {
           break;
         }
-        available += level.total_quantity().value();
+        available += level.matchable_quantity(order.account, stp_).value();
         if (available >= order.quantity.value()) {
           return true;
         }
@@ -244,7 +267,7 @@ class OrderBook {
         if (price < order.price) {
           break;
         }
-        available += level.total_quantity().value();
+        available += level.matchable_quantity(order.account, stp_).value();
         if (available >= order.quantity.value()) {
           return true;
         }
@@ -268,6 +291,8 @@ class OrderBook {
   BidLevels bids_;
   AskLevels asks_;
   std::map<OrderId, RestingLocation> index_;
+  SelfTradePrevention stp_{SelfTradePrevention::Off};
+  std::vector<OrderId> stp_cancels_{};
 };
 
 }  // namespace mercury

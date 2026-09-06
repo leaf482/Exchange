@@ -30,6 +30,8 @@ EventLog / jsonl           save/load JSONL; replay via Engine (limit/market/canc
 - Stop: armed until last trade crosses `stop_price` (buy `>=`, sell `<=`),
   then becomes limit (`limit_price`) or market; same id; cancel removes pending.
 - Cancel: remove resting order / pending stop by `OrderId` (routed by symbol).
+- Self-trade prevention (optional): `CancelResting` drops same-account resting
+  orders (account `0` exempt) and continues matching; default off.
 - Instruments are isolated: orders and last-trade stops never cross symbols.
 - Trade price is the maker (resting) price.
 - Persistence: `jsonl::save_event_log_file` / `load_event_log_file` round-trip
