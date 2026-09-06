@@ -4,6 +4,7 @@
 #include "mercury/order_book.hpp"
 
 #include <cstddef>
+#include <optional>
 #include <stdexcept>
 #include <type_traits>
 #include <utility>
@@ -18,7 +19,15 @@ struct CancelOrder {
   constexpr bool operator==(const CancelOrder&) const = default;
 };
 
-using Event = std::variant<Order, MarketOrder, CancelOrder, StopOrder>;
+struct ReplaceOrder {
+  OrderId id;
+  Price price;
+  Quantity quantity;
+
+  constexpr bool operator==(const ReplaceOrder&) const = default;
+};
+
+using Event = std::variant<Order, MarketOrder, CancelOrder, StopOrder, ReplaceOrder>;
 
 class EventLog {
  public:
@@ -48,6 +57,9 @@ inline std::vector<Trade> apply(OrderBook& book, const Event& event) {
         } else if constexpr (std::is_same_v<T, CancelOrder>) {
           book.cancel(payload.id);
           return {};
+        } else if constexpr (std::is_same_v<T, ReplaceOrder>) {
+          auto replaced = book.replace(payload.id, payload.price, payload.quantity);
+          return replaced ? std::move(*replaced) : std::vector<Trade>{};
         } else {
           throw std::runtime_error("stop events require Engine replay");
         }
@@ -75,6 +87,10 @@ inline SubmitResult apply(Engine& engine, const Event& event) {
         } else if constexpr (std::is_same_v<T, CancelOrder>) {
           engine.cancel(payload.id);
           return SubmitResult{.decision = RiskDecision::Accept};
+        } else if constexpr (std::is_same_v<T, ReplaceOrder>) {
+          auto replaced = engine.replace(payload.id, payload.price, payload.quantity);
+          return replaced ? std::move(*replaced)
+                          : SubmitResult{.decision = RiskDecision::Accept};
         } else {
           return engine.add_stop(payload);
         }

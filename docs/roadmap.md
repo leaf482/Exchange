@@ -16,6 +16,7 @@ Incremental work only. Correctness and measurement before concurrency.
 - Python market sim (Bernoulli arrivals, inventory-skewed maker + takers)
 - Optional pybind11 `mercury_engine` module (`Engine` / `snapshot`)
 - Self-trade prevention (`CancelResting`; account 0 exempt; default off)
+- Order replace (cancel-replace; loses time priority; JSONL `replace`)
 
 ## Next (small steps)
 

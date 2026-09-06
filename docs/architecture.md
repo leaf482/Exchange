@@ -19,7 +19,7 @@ Engine                     risk -> per-Symbol OrderBook -> positions + working
         +-- Positions      signed qty / PnL per (account, symbol)
         +-- RiskLimits     max order size, max abs position (per symbol)
         |
-EventLog / jsonl           save/load JSONL; replay via Engine (limit/market/cancel/stop)
+EventLog / jsonl           save/load JSONL; Engine replay (limit/market/cancel/stop/replace)
 ```
 
 ## Matching
@@ -32,6 +32,8 @@ EventLog / jsonl           save/load JSONL; replay via Engine (limit/market/canc
 - Cancel: remove resting order / pending stop by `OrderId` (routed by symbol).
 - Self-trade prevention (optional): `CancelResting` drops same-account resting
   orders (account `0` exempt) and continues matching; default off.
+- Replace: cancel-replace resting GTC by id (new price/qty; qty 0 cancels);
+  loses time priority; pending stops are not replaceable.
 - Instruments are isolated: orders and last-trade stops never cross symbols.
 - Trade price is the maker (resting) price.
 - Persistence: `jsonl::save_event_log_file` / `load_event_log_file` round-trip

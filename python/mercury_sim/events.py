@@ -34,6 +34,14 @@ class CancelEvent:
 
 
 @dataclass(frozen=True)
+class ReplaceEvent:
+    id: int
+    price: int
+    quantity: int
+    type: Literal["replace"] = "replace"
+
+
+@dataclass(frozen=True)
 class StopEvent:
     id: int
     side: Literal["buy", "sell"]
@@ -46,7 +54,7 @@ class StopEvent:
     type: Literal["stop"] = "stop"
 
 
-Event = Union[LimitEvent, MarketEvent, CancelEvent, StopEvent]
+Event = Union[LimitEvent, MarketEvent, CancelEvent, ReplaceEvent, StopEvent]
 
 
 def event_to_dict(event: Event) -> dict:
@@ -78,6 +86,12 @@ def event_from_dict(data: dict) -> Event:
         )
     if kind == "cancel":
         return CancelEvent(id=data["id"])
+    if kind == "replace":
+        return ReplaceEvent(
+            id=data["id"],
+            price=data["price"],
+            quantity=data["quantity"],
+        )
     if kind == "stop":
         return StopEvent(
             id=data["id"],

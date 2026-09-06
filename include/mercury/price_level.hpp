@@ -5,6 +5,7 @@
 #include <cassert>
 #include <cstddef>
 #include <deque>
+#include <optional>
 
 namespace mercury {
 
@@ -47,6 +48,15 @@ class PriceLevel {
       }
     }
     return false;
+  }
+
+  std::optional<Order> find(OrderId id) const {
+    for (const Order& order : orders_) {
+      if (order.id == id) {
+        return order;
+      }
+    }
+    return std::nullopt;
   }
 
   Quantity total_quantity() const {

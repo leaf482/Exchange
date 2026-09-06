@@ -9,6 +9,7 @@ from mercury_sim.events import (
     Event,
     LimitEvent,
     MarketEvent,
+    ReplaceEvent,
     StopEvent,
     read_jsonl,
 )
@@ -41,6 +42,9 @@ def apply_event(book: OrderBook, event: Event) -> list[Trade]:
                 symbol=event.symbol,
             )
         )
+    if isinstance(event, ReplaceEvent):
+        trades = book.replace(event.id, event.price, event.quantity)
+        return trades if trades is not None else []
     book.cancel(event.id)
     return []
 

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal, Optional
 
 from mercury_sim.book import Order, OrderBook, Trade
-from mercury_sim.events import Event, LimitEvent, MarketEvent, StopEvent
+from mercury_sim.events import Event, LimitEvent, MarketEvent, ReplaceEvent, StopEvent
 
 
 @dataclass
@@ -82,6 +82,18 @@ class Engine:
                 return True
         return False
 
+    def replace(self, order_id: int, price: int, quantity: int) -> Optional[list[Trade]]:
+        if order_id in self._stop_index:
+            return None
+        for symbol, book in self._books.items():
+            trades = book.replace(order_id, price, quantity)
+            if trades is None:
+                continue
+            self._note_trades(symbol, trades)
+            trades.extend(self._drain_stops(symbol))
+            return trades
+        return None
+
     def apply(self, event: Event) -> list[Trade]:
         if isinstance(event, LimitEvent):
             return self.add_limit(event)
@@ -89,6 +101,9 @@ class Engine:
             return self.add_market(event)
         if isinstance(event, StopEvent):
             return self.add_stop(event)
+        if isinstance(event, ReplaceEvent):
+            trades = self.replace(event.id, event.price, event.quantity)
+            return trades if trades is not None else []
         self.cancel(event.id)
         return []
 

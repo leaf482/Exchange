@@ -86,6 +86,41 @@ class Engine {
     return inst.book.cancel(id);
   }
 
+  // Cancel-replace a resting GTC order (not a pending stop). Loses time priority.
+  // quantity 0 cancels only. Returns nullopt if id is missing or is a stop.
+  std::optional<SubmitResult> replace(OrderId id, Price price, Quantity quantity) {
+    const auto open_it = open_orders_.find(id);
+    if (open_it == open_orders_.end()) {
+      return std::nullopt;
+    }
+
+    const Symbol symbol = open_it->second.symbol;
+    Instrument& inst = instrument(symbol);
+    for (const StopOrder& stop : inst.stops) {
+      if (stop.id == id) {
+        return std::nullopt;
+      }
+    }
+
+    const OpenOrder open = open_it->second;
+    if (!cancel(id)) {
+      return std::nullopt;
+    }
+    if (quantity.is_zero()) {
+      return SubmitResult{.decision = RiskDecision::Accept};
+    }
+
+    return add(Order{
+        .id = id,
+        .side = open.side,
+        .price = price,
+        .quantity = quantity,
+        .account = open.account,
+        .tif = TimeInForce::Gtc,
+        .symbol = symbol,
+    });
+  }
+
   BookSnapshot snapshot(std::size_t max_levels, Symbol symbol = Symbol{0}) const {
     const Instrument* inst = find_instrument(symbol);
     return inst ? inst->book.snapshot(max_levels) : BookSnapshot{};

@@ -43,6 +43,29 @@ class StpTests(unittest.TestCase):
         self.assertIsNone(book.best_ask())
 
 
+class ReplaceTests(unittest.TestCase):
+    def test_replace_loses_priority(self) -> None:
+        book = OrderBook()
+        book.add_limit(Order(id=1, side="buy", price=100, quantity=5, account=1))
+        book.add_limit(Order(id=2, side="buy", price=100, quantity=5, account=2))
+        self.assertEqual(book.replace(1, 100, 5), [])
+        fill = book.add_limit(Order(id=3, side="sell", price=100, quantity=5, account=3))
+        self.assertEqual(fill[0].maker_id, 2)
+
+    def test_replace_event_replay(self) -> None:
+        from mercury_sim.events import ReplaceEvent
+
+        trades, _ = replay(
+            [
+                LimitEvent(id=1, side="buy", price=100, quantity=5, account=1),
+                ReplaceEvent(id=1, price=100, quantity=2),
+                LimitEvent(id=2, side="sell", price=100, quantity=2, account=2),
+            ]
+        )
+        self.assertEqual(len(trades), 1)
+        self.assertEqual(trades[0].quantity, 2)
+
+
 class EngineStopTests(unittest.TestCase):
     def test_stop_fires_on_last_trade(self) -> None:
         engine = Engine()

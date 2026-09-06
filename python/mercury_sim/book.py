@@ -105,6 +105,28 @@ class OrderBook:
         del self._index[order_id]
         return True
 
+    def replace(self, order_id: int, price: int, quantity: int) -> Optional[list[Trade]]:
+        """Cancel-replace resting order (loses time priority). qty 0 cancels only."""
+        loc = self._index.get(order_id)
+        if loc is None:
+            return None
+        side, old_price = loc
+        levels = self._bids if side == "buy" else self._asks
+        original = next(order for order in levels[old_price] if order.id == order_id)
+        restored = Order(
+            id=original.id,
+            side=original.side,
+            price=price,
+            quantity=quantity,
+            account=original.account,
+            tif="gtc",
+            symbol=original.symbol,
+        )
+        self.cancel(order_id)
+        if quantity == 0:
+            return []
+        return self.add_limit(restored)
+
     def is_live(self, order_id: int) -> bool:
         return order_id in self._index
 

@@ -106,6 +106,40 @@ class OrderBook {
   // OrderIds cancelled by self-trade prevention during the last add/add_market.
   std::vector<OrderId> take_stp_cancels() { return std::move(stp_cancels_); }
 
+  // Cancel-replace a resting order (loses time priority). qty 0 => cancel only.
+  // Returns nullopt if id is not resting.
+  std::optional<std::vector<Trade>> replace(OrderId id, Price price, Quantity quantity) {
+    stp_cancels_.clear();
+    const auto loc_it = index_.find(id);
+    if (loc_it == index_.end()) {
+      return std::nullopt;
+    }
+
+    const RestingLocation loc = loc_it->second;
+    std::optional<Order> original;
+    if (loc.side == Side::Buy) {
+      original = bids_.at(loc.price).find(id);
+    } else {
+      original = asks_.at(loc.price).find(id);
+    }
+    assert(original.has_value());
+
+    cancel(id);
+    if (quantity.is_zero()) {
+      return std::vector<Trade>{};
+    }
+
+    return add(Order{
+        .id = id,
+        .side = original->side,
+        .price = price,
+        .quantity = quantity,
+        .account = original->account,
+        .tif = TimeInForce::Gtc,
+        .symbol = original->symbol,
+    });
+  }
+
   // Removes a resting order. Returns false if the id is not on the book.
   bool cancel(OrderId id) {
     const auto loc_it = index_.find(id);

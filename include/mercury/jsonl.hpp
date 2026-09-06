@@ -155,6 +155,13 @@ inline Event parse_event_line(std::string_view line) {
         .id = OrderId{static_cast<std::uint64_t>(detail::require_int(line, "id"))},
     };
   }
+  if (type == "replace") {
+    return ReplaceOrder{
+        .id = OrderId{static_cast<std::uint64_t>(detail::require_int(line, "id"))},
+        .price = Price{detail::require_int(line, "price")},
+        .quantity = Quantity{static_cast<std::uint64_t>(detail::require_int(line, "quantity"))},
+    };
+  }
   if (type == "stop") {
     StopOrder stop{
         .id = OrderId{static_cast<std::uint64_t>(detail::require_int(line, "id"))},
@@ -199,6 +206,11 @@ inline std::string format_event_line(const Event& event) {
               << ",\"symbol\":" << payload.symbol.value() << '}';
         } else if constexpr (std::is_same_v<T, CancelOrder>) {
           out << "{\"type\":\"cancel\",\"id\":" << payload.id.value() << '}';
+        } else if constexpr (std::is_same_v<T, ReplaceOrder>) {
+          out << "{\"type\":\"replace\""
+              << ",\"id\":" << payload.id.value()
+              << ",\"price\":" << payload.price.ticks()
+              << ",\"quantity\":" << payload.quantity.value() << '}';
         } else {
           out << "{\"type\":\"stop\""
               << ",\"id\":" << payload.id.value()
