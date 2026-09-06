@@ -7,6 +7,7 @@
 
 using mercury::AccountId;
 using mercury::CancelOrder;
+using mercury::Engine;
 using mercury::EventLog;
 using mercury::MarketOrder;
 using mercury::Order;
@@ -15,6 +16,7 @@ using mercury::OrderId;
 using mercury::Price;
 using mercury::Quantity;
 using mercury::Side;
+using mercury::StopOrder;
 using mercury::Symbol;
 using mercury::TimeInForce;
 using mercury::jsonl::format_event_line;
@@ -101,6 +103,20 @@ TEST(Jsonl, RoundTripFormatAndParse) {
   EXPECT_EQ(std::get<Order>(parsed), order);
 }
 
+TEST(Jsonl, RoundTripStopEvent) {
+  const StopOrder stop{.id = OrderId{9},
+                       .side = Side::Sell,
+                       .stop_price = Price{95},
+                       .quantity = Quantity{2},
+                       .account = AccountId{4},
+                       .limit_price = Price{94},
+                       .tif = TimeInForce::Ioc,
+                       .symbol = Symbol{2}};
+  const auto parsed = parse_event_line(format_event_line(stop));
+  ASSERT_TRUE(std::holds_alternative<StopOrder>(parsed));
+  EXPECT_EQ(std::get<StopOrder>(parsed), stop);
+}
+
 TEST(Jsonl, SaveLoadFileExactReplay) {
   EventLog original;
   original.append(Order{.id = OrderId{1},
@@ -139,4 +155,19 @@ TEST(Jsonl, SaveLoadFileExactReplay) {
   EXPECT_EQ(replay(first, original), replay(second, loaded));
   EXPECT_EQ(first.best_bid(), second.best_bid());
   EXPECT_EQ(first.best_ask(), second.best_ask());
+}
+
+TEST(Jsonl, EngineReplayStopFromJsonl) {
+  const char* text =
+      R"({"type":"limit","id":1,"side":"sell","price":100,"quantity":8,"account":1})"
+      "\n"
+      R"({"type":"stop","id":2,"side":"buy","stop_price":100,"quantity":3,"account":2})"
+      "\n"
+      R"({"type":"limit","id":3,"side":"buy","price":100,"quantity":5,"account":3})"
+      "\n";
+
+  Engine engine;
+  const auto trades = replay(engine, load_event_log(text));
+  EXPECT_EQ(trades.size(), 2u);
+  EXPECT_EQ(engine.positions().quantity(AccountId{2}), 3);
 }

@@ -2,7 +2,13 @@
 
 #include <gtest/gtest.h>
 
+#include <optional>
+#include <stdexcept>
+#include <variant>
+
+using mercury::AccountId;
 using mercury::CancelOrder;
+using mercury::Engine;
 using mercury::EventLog;
 using mercury::MarketOrder;
 using mercury::Order;
@@ -11,18 +17,20 @@ using mercury::OrderId;
 using mercury::Price;
 using mercury::Quantity;
 using mercury::Side;
-using mercury::Trade;
+using mercury::StopOrder;
 using mercury::apply;
 using mercury::replay;
 
 namespace {
 
-Order make_limit(std::uint64_t id, Side side, Price price, std::uint64_t qty) {
+Order make_limit(std::uint64_t id, Side side, Price price, std::uint64_t qty,
+                 AccountId account = AccountId{0}) {
   return Order{
       .id = OrderId{id},
       .side = side,
       .price = price,
       .quantity = Quantity{qty},
+      .account = account,
   };
 }
 
@@ -87,4 +95,44 @@ TEST(EventLog, ApplyCancelRemovesRestingOrder) {
   const auto trades = apply(book, CancelOrder{.id = OrderId{1}});
   EXPECT_TRUE(trades.empty());
   EXPECT_FALSE(book.best_bid().has_value());
+}
+
+TEST(EventLog, OrderBookRejectsStopEvents) {
+  OrderBook book;
+  EXPECT_THROW(apply(book, StopOrder{.id = OrderId{1},
+                                     .side = Side::Buy,
+                                     .stop_price = Price{100},
+                                     .quantity = Quantity{1},
+                                     .limit_price = std::nullopt}),
+               std::runtime_error);
+}
+
+TEST(EventLog, EngineReplayFiresStop) {
+  EventLog log;
+  log.append(make_limit(1, Side::Sell, Price{100}, 8, AccountId{1}));
+  log.append(StopOrder{.id = OrderId{2},
+                       .side = Side::Buy,
+                       .stop_price = Price{100},
+                       .quantity = Quantity{3},
+                       .account = AccountId{2},
+                       .limit_price = std::nullopt});
+  log.append(make_limit(3, Side::Buy, Price{100}, 5, AccountId{3}));
+
+  Engine engine;
+  const auto trades = replay(engine, log);
+
+  EXPECT_EQ(trades.size(), 2u);
+  EXPECT_EQ(engine.pending_stop_count(), 0u);
+  EXPECT_EQ(engine.positions().quantity(AccountId{2}), 3);
+  EXPECT_EQ(engine.last_trade_price(), Price{100});
+}
+
+TEST(EventLog, EngineReplayMatchesBookForPlainEvents) {
+  EventLog log;
+  log.append(make_limit(1, Side::Sell, Price{100}, 5, AccountId{1}));
+  log.append(make_limit(2, Side::Buy, Price{100}, 5, AccountId{2}));
+
+  OrderBook book;
+  Engine engine;
+  EXPECT_EQ(replay(book, log), replay(engine, log));
 }

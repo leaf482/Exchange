@@ -9,7 +9,7 @@ Incremental work only. Correctness and measurement before concurrency.
 - Stop orders (last-trade trigger → limit or market)
 - Multi-instrument books keyed by `Symbol` (positions/risk per symbol)
 - OrderId index, positions + PnL, pre-trade risk (incl. resting exposure)
-- Deterministic event log + JSONL save/load + replay (`jsonl_replay`)
+- Deterministic event log + JSONL save/load + Engine replay (incl. stops)
 - Book depth snapshot (`book_snapshot`)
 - Latency benches (rest / match / cancel / deep book)
 - Python generate / replay / C++ parity compare
@@ -18,7 +18,8 @@ Incremental work only. Correctness and measurement before concurrency.
 
 ## Next (small steps)
 
-_(core roadmap items above are done; pick from Later as needed)_
+1. Shard-by-symbol matching only after benches show a hotspot
+2. Optional networking / storage / UI outside the matching core
 
 ## Later
 

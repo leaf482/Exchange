@@ -155,6 +155,24 @@ inline Event parse_event_line(std::string_view line) {
         .id = OrderId{static_cast<std::uint64_t>(detail::require_int(line, "id"))},
     };
   }
+  if (type == "stop") {
+    StopOrder stop{
+        .id = OrderId{static_cast<std::uint64_t>(detail::require_int(line, "id"))},
+        .side = detail::parse_side(detail::require_string(line, "side")),
+        .stop_price = Price{detail::require_int(line, "stop_price")},
+        .quantity = Quantity{static_cast<std::uint64_t>(detail::require_int(line, "quantity"))},
+        .account = AccountId{static_cast<std::uint64_t>(
+            detail::field(line, "account") ? detail::require_int(line, "account") : 0)},
+        .limit_price = std::nullopt,
+        .tif = detail::optional_tif(line),
+        .symbol = Symbol{static_cast<std::uint64_t>(
+            detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
+    };
+    if (detail::field(line, "limit_price")) {
+      stop.limit_price = Price{detail::require_int(line, "limit_price")};
+    }
+    return stop;
+  }
   throw std::runtime_error("unknown event type: " + type);
 }
 
@@ -179,8 +197,20 @@ inline std::string format_event_line(const Event& event) {
               << ",\"quantity\":" << payload.quantity.value()
               << ",\"account\":" << payload.account.value()
               << ",\"symbol\":" << payload.symbol.value() << '}';
-        } else {
+        } else if constexpr (std::is_same_v<T, CancelOrder>) {
           out << "{\"type\":\"cancel\",\"id\":" << payload.id.value() << '}';
+        } else {
+          out << "{\"type\":\"stop\""
+              << ",\"id\":" << payload.id.value()
+              << ",\"side\":\"" << detail::format_side(payload.side) << '"'
+              << ",\"stop_price\":" << payload.stop_price.ticks()
+              << ",\"quantity\":" << payload.quantity.value()
+              << ",\"account\":" << payload.account.value();
+          if (payload.limit_price) {
+            out << ",\"limit_price\":" << payload.limit_price->ticks();
+          }
+          out << ",\"tif\":\"" << detail::format_tif(payload.tif) << '"'
+              << ",\"symbol\":" << payload.symbol.value() << '}';
         }
         return out.str();
       },

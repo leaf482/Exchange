@@ -19,7 +19,7 @@ Engine                     risk -> per-Symbol OrderBook -> positions + working
         +-- Positions      signed qty / PnL per (account, symbol)
         +-- RiskLimits     max order size, max abs position (per symbol)
         |
-EventLog / jsonl           save/load JSONL for exact replay (limit/market/cancel)
+EventLog / jsonl           save/load JSONL; replay via Engine (limit/market/cancel/stop)
 ```
 
 ## Matching
@@ -33,7 +33,8 @@ EventLog / jsonl           save/load JSONL for exact replay (limit/market/cancel
 - Instruments are isolated: orders and last-trade stops never cross symbols.
 - Trade price is the maker (resting) price.
 - Persistence: `jsonl::save_event_log_file` / `load_event_log_file` round-trip
-  the event stream (including `tif` / `symbol`); replay is deterministic.
+  the event stream (including `tif` / `symbol` / `stop`); `replay(Engine&)` is
+  deterministic. Bare `OrderBook` replay rejects stop events.
 
 ## Repo layout
 

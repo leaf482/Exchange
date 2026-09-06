@@ -16,8 +16,8 @@ int main(int argc, char** argv) {
   }
 
   const auto log = mercury::jsonl::load_event_log(input);
-  mercury::OrderBook book;
-  const auto trades = mercury::replay(book, log);
+  mercury::Engine engine;
+  const auto trades = mercury::replay(engine, log);
 
   for (const auto& trade : trades) {
     std::cout << "{\"maker_id\":" << trade.maker_id.value()

@@ -38,9 +38,9 @@ int main(int argc, char** argv) {
   }
 
   const auto log = mercury::jsonl::load_event_log(input);
-  mercury::OrderBook book;
-  mercury::replay(book, log);
-  const auto snap = book.snapshot(depth);
+  mercury::Engine engine;
+  mercury::replay(engine, log);
+  const auto snap = engine.snapshot(depth);
 
   std::cout << "{\"bids\":";
   write_levels(std::cout, snap.bids);
