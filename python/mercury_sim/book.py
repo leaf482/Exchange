@@ -12,6 +12,8 @@ class Order:
     price: int
     quantity: int
     account: int = 0
+    tif: Literal["gtc", "ioc", "fok"] = "gtc"
+    symbol: int = 0
 
 
 @dataclass(frozen=True)
@@ -67,8 +69,11 @@ class OrderBook:
         self._index: dict[int, tuple[Literal["buy", "sell"], int]] = {}
 
     def add_limit(self, order: Order) -> list[Trade]:
+        if order.tif == "fok" and not self._can_fully_fill(order):
+            return []
+
         trades = self._match(order, is_market=False)
-        if order.quantity > 0:
+        if order.tif == "gtc" and order.quantity > 0:
             self._rest(order)
         return trades
 
@@ -125,6 +130,24 @@ class OrderBook:
             for price in sorted(self._asks)[:max_levels]
         )
         return BookSnapshot(bids=bids, asks=asks)
+
+    def _can_fully_fill(self, order: Order) -> bool:
+        available = 0
+        if order.side == "buy":
+            for price in sorted(self._asks):
+                if price > order.price:
+                    break
+                available += sum(o.quantity for o in self._asks[price])
+                if available >= order.quantity:
+                    return True
+        else:
+            for price in sorted(self._bids, reverse=True):
+                if price < order.price:
+                    break
+                available += sum(o.quantity for o in self._bids[price])
+                if available >= order.quantity:
+                    return True
+        return False
 
     def _rest(self, order: Order) -> None:
         levels = self._bids if order.side == "buy" else self._asks

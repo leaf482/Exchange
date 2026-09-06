@@ -12,7 +12,7 @@ Incremental work only. Correctness and measurement before concurrency.
 - Deterministic event log + JSONL save/load + Engine replay (incl. stops)
 - Book depth snapshot (`book_snapshot`)
 - Latency benches (rest / match / cancel / deep book)
-- Python generate / replay / C++ parity compare
+- Python generate / replay / C++ parity compare (tif + stop)
 - Python market sim (Bernoulli arrivals, inventory-skewed maker + takers)
 - Optional pybind11 `mercury_engine` module (`Engine` / `snapshot`)
 

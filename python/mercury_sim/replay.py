@@ -4,10 +4,20 @@ import argparse
 from typing import Iterable, Optional
 
 from mercury_sim.book import Order, OrderBook, Trade
-from mercury_sim.events import Event, LimitEvent, MarketEvent, read_jsonl
+from mercury_sim.engine import Engine
+from mercury_sim.events import (
+    Event,
+    LimitEvent,
+    MarketEvent,
+    StopEvent,
+    read_jsonl,
+)
 
 
 def apply_event(book: OrderBook, event: Event) -> list[Trade]:
+    """Apply to a bare OrderBook. Stop events are not supported here."""
+    if isinstance(event, StopEvent):
+        raise ValueError("stop events require Engine replay")
     if isinstance(event, LimitEvent):
         return book.add_limit(
             Order(
@@ -16,6 +26,8 @@ def apply_event(book: OrderBook, event: Event) -> list[Trade]:
                 price=event.price,
                 quantity=event.quantity,
                 account=event.account,
+                tif=event.tif,
+                symbol=event.symbol,
             )
         )
     if isinstance(event, MarketEvent):
@@ -26,6 +38,7 @@ def apply_event(book: OrderBook, event: Event) -> list[Trade]:
                 price=0,
                 quantity=event.quantity,
                 account=event.account,
+                symbol=event.symbol,
             )
         )
     book.cancel(event.id)
@@ -33,12 +46,14 @@ def apply_event(book: OrderBook, event: Event) -> list[Trade]:
 
 
 def replay(events: Iterable[Event]) -> tuple[list[Trade], list[Optional[int]]]:
-    book = OrderBook()
+    """Replay through Engine (supports stops, tif, multi-symbol)."""
+    engine = Engine()
     trades: list[Trade] = []
     spreads: list[Optional[int]] = []
     for event in events:
-        trades.extend(apply_event(book, event))
-        spreads.append(book.spread())
+        trades.extend(engine.apply(event))
+        symbol = getattr(event, "symbol", 0)
+        spreads.append(engine.book(symbol).spread())
     return trades, spreads
 
 

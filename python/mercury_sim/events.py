@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass
-from typing import Iterable, Literal, Union
+from typing import Iterable, Literal, Optional, Union
 
 
 @dataclass(frozen=True)
@@ -12,6 +12,8 @@ class LimitEvent:
     price: int
     quantity: int
     account: int = 0
+    tif: Literal["gtc", "ioc", "fok"] = "gtc"
+    symbol: int = 0
     type: Literal["limit"] = "limit"
 
 
@@ -21,6 +23,7 @@ class MarketEvent:
     side: Literal["buy", "sell"]
     quantity: int
     account: int = 0
+    symbol: int = 0
     type: Literal["market"] = "market"
 
 
@@ -30,11 +33,27 @@ class CancelEvent:
     type: Literal["cancel"] = "cancel"
 
 
-Event = Union[LimitEvent, MarketEvent, CancelEvent]
+@dataclass(frozen=True)
+class StopEvent:
+    id: int
+    side: Literal["buy", "sell"]
+    stop_price: int
+    quantity: int
+    account: int = 0
+    limit_price: Optional[int] = None
+    tif: Literal["gtc", "ioc", "fok"] = "gtc"
+    symbol: int = 0
+    type: Literal["stop"] = "stop"
+
+
+Event = Union[LimitEvent, MarketEvent, CancelEvent, StopEvent]
 
 
 def event_to_dict(event: Event) -> dict:
-    return asdict(event)
+    data = asdict(event)
+    if isinstance(event, StopEvent) and event.limit_price is None:
+        del data["limit_price"]
+    return data
 
 
 def event_from_dict(data: dict) -> Event:
@@ -46,6 +65,8 @@ def event_from_dict(data: dict) -> Event:
             price=data["price"],
             quantity=data["quantity"],
             account=data.get("account", 0),
+            tif=data.get("tif", "gtc"),
+            symbol=data.get("symbol", 0),
         )
     if kind == "market":
         return MarketEvent(
@@ -53,9 +74,21 @@ def event_from_dict(data: dict) -> Event:
             side=data["side"],
             quantity=data["quantity"],
             account=data.get("account", 0),
+            symbol=data.get("symbol", 0),
         )
     if kind == "cancel":
         return CancelEvent(id=data["id"])
+    if kind == "stop":
+        return StopEvent(
+            id=data["id"],
+            side=data["side"],
+            stop_price=data["stop_price"],
+            quantity=data["quantity"],
+            account=data.get("account", 0),
+            limit_price=data.get("limit_price"),
+            tif=data.get("tif", "gtc"),
+            symbol=data.get("symbol", 0),
+        )
     raise ValueError(f"unknown event type: {kind}")
 
 

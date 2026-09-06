@@ -7,7 +7,7 @@ Single-threaded, deterministic matching core. Prices and quantities are integers
 
 ```
 apps/jsonl_replay          CLI: JSONL events -> trades
-python/mercury_sim         generate / market sim / replay / compare
+python/mercury_sim         generate / market sim / Engine replay / compare
 python/mercury_engine      optional pybind11 Engine / snapshot
         |
         v
