@@ -27,7 +27,14 @@ struct ReplaceOrder {
   constexpr bool operator==(const ReplaceOrder&) const = default;
 };
 
-using Event = std::variant<Order, MarketOrder, CancelOrder, StopOrder, ReplaceOrder>;
+struct MassCancelOrder {
+  MassCancelFilter filter{};
+
+  constexpr bool operator==(const MassCancelOrder&) const = default;
+};
+
+using Event =
+    std::variant<Order, MarketOrder, CancelOrder, StopOrder, ReplaceOrder, MassCancelOrder>;
 
 class EventLog {
  public:
@@ -45,7 +52,7 @@ class EventLog {
   std::vector<Event> events_;
 };
 
-// OrderBook cannot arm stops (needs last-trade + risk). Prefer apply(Engine&).
+// OrderBook cannot arm stops / mass-cancel by account. Prefer apply(Engine&).
 inline std::vector<Trade> apply(OrderBook& book, const Event& event) {
   return std::visit(
       [&](const auto& payload) -> std::vector<Trade> {
@@ -60,6 +67,8 @@ inline std::vector<Trade> apply(OrderBook& book, const Event& event) {
         } else if constexpr (std::is_same_v<T, ReplaceOrder>) {
           auto replaced = book.replace(payload.id, payload.price, payload.quantity);
           return replaced ? std::move(*replaced) : std::vector<Trade>{};
+        } else if constexpr (std::is_same_v<T, MassCancelOrder>) {
+          throw std::runtime_error("mass_cancel events require Engine replay");
         } else {
           throw std::runtime_error("stop events require Engine replay");
         }
@@ -91,6 +100,9 @@ inline SubmitResult apply(Engine& engine, const Event& event) {
           auto replaced = engine.replace(payload.id, payload.price, payload.quantity);
           return replaced ? std::move(*replaced)
                           : SubmitResult{.decision = RiskDecision::Accept};
+        } else if constexpr (std::is_same_v<T, MassCancelOrder>) {
+          engine.mass_cancel(payload.filter);
+          return SubmitResult{.decision = RiskDecision::Accept};
         } else {
           return engine.add_stop(payload);
         }

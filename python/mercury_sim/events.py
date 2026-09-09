@@ -42,6 +42,14 @@ class ReplaceEvent:
 
 
 @dataclass(frozen=True)
+class MassCancelEvent:
+    account: Optional[int] = None
+    symbol: Optional[int] = None
+    side: Optional[Literal["buy", "sell"]] = None
+    type: Literal["mass_cancel"] = "mass_cancel"
+
+
+@dataclass(frozen=True)
 class StopEvent:
     id: int
     side: Literal["buy", "sell"]
@@ -54,13 +62,15 @@ class StopEvent:
     type: Literal["stop"] = "stop"
 
 
-Event = Union[LimitEvent, MarketEvent, CancelEvent, ReplaceEvent, StopEvent]
+Event = Union[LimitEvent, MarketEvent, CancelEvent, ReplaceEvent, MassCancelEvent, StopEvent]
 
 
 def event_to_dict(event: Event) -> dict:
     data = asdict(event)
     if isinstance(event, StopEvent) and event.limit_price is None:
         del data["limit_price"]
+    if isinstance(event, MassCancelEvent):
+        data = {k: v for k, v in data.items() if v is not None or k == "type"}
     return data
 
 
@@ -91,6 +101,12 @@ def event_from_dict(data: dict) -> Event:
             id=data["id"],
             price=data["price"],
             quantity=data["quantity"],
+        )
+    if kind == "mass_cancel":
+        return MassCancelEvent(
+            account=data.get("account"),
+            symbol=data.get("symbol"),
+            side=data.get("side"),
         )
     if kind == "stop":
         return StopEvent(

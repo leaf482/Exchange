@@ -12,6 +12,7 @@ using mercury::OrderId;
 using mercury::Price;
 using mercury::Quantity;
 using mercury::Side;
+using mercury::Symbol;
 
 namespace {
 
@@ -32,13 +33,14 @@ void configure_latency(benchmark::internal::Benchmark* bench) {
 }
 
 Order make_order(std::uint64_t id, Side side, Price price, std::uint64_t qty,
-                 AccountId account) {
+                 AccountId account, Symbol symbol = Symbol{0}) {
   return Order{
       .id = OrderId{id},
       .side = side,
       .price = price,
       .quantity = Quantity{qty},
       .account = account,
+      .symbol = symbol,
   };
 }
 
@@ -111,5 +113,57 @@ BENCHMARK(BM_RestLimit)->Apply(configure_latency);
 BENCHMARK(BM_MatchLimit)->Apply(configure_latency);
 BENCHMARK(BM_Cancel)->Apply(configure_latency);
 BENCHMARK(BM_MatchDeepBook)->Apply(configure_latency)->Arg(8)->Arg(32)->Arg(128);
+
+// Rest one order on each of N symbols, then match on a single symbol.
+static void BM_MatchOneOfManySymbols(benchmark::State& state) {
+  const int symbols = static_cast<int>(state.range(0));
+  std::uint64_t id = 1;
+  for (auto _ : state) {
+    state.PauseTiming();
+    Engine engine;
+    for (int symbol = 0; symbol < symbols; ++symbol) {
+      engine.add(make_order(id++, Side::Sell, Price{100}, 1, AccountId{1},
+                            Symbol{static_cast<std::uint64_t>(symbol)}));
+    }
+    auto buy = make_order(id++, Side::Buy, Price{100}, 1, AccountId{2}, Symbol{0});
+    state.ResumeTiming();
+
+    auto result = engine.add(std::move(buy));
+    benchmark::DoNotOptimize(result);
+  }
+}
+
+// Cancel all resting orders for one account across N symbols.
+static void BM_MassCancelAcrossSymbols(benchmark::State& state) {
+  const int symbols = static_cast<int>(state.range(0));
+  std::uint64_t id = 1;
+  for (auto _ : state) {
+    state.PauseTiming();
+    Engine engine;
+    for (int symbol = 0; symbol < symbols; ++symbol) {
+      engine.add(make_order(id++, Side::Buy, Price{100}, 1, AccountId{1},
+                            Symbol{static_cast<std::uint64_t>(symbol)}));
+      engine.add(make_order(id++, Side::Buy, Price{99}, 1, AccountId{2},
+                            Symbol{static_cast<std::uint64_t>(symbol)}));
+    }
+    state.ResumeTiming();
+
+    auto cancelled =
+        engine.mass_cancel(mercury::MassCancelFilter{.account = AccountId{1},
+                                                    .symbol = std::nullopt,
+                                                    .side = std::nullopt});
+    benchmark::DoNotOptimize(cancelled);
+  }
+}
+
+BENCHMARK(BM_MatchOneOfManySymbols)
+    ->Apply(configure_latency)
+    ->Arg(1)
+    ->Arg(8)
+    ->Arg(32);
+BENCHMARK(BM_MassCancelAcrossSymbols)
+    ->Apply(configure_latency)
+    ->Arg(8)
+    ->Arg(32);
 
 BENCHMARK_MAIN();

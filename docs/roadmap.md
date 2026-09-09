@@ -11,12 +11,14 @@ Incremental work only. Correctness and measurement before concurrency.
 - OrderId index, positions + PnL, pre-trade risk (incl. resting exposure)
 - Deterministic event log + JSONL save/load + Engine replay (incl. stops)
 - Book depth snapshot (`book_snapshot`)
-- Latency benches (rest / match / cancel / deep book)
+- Latency benches (rest / match / cancel / deep book / multi-symbol / mass cancel)
 - Python generate / replay / C++ parity compare (tif + stop)
 - Python market sim (Bernoulli arrivals, inventory-skewed maker + takers)
 - Optional pybind11 `mercury_engine` module (`Engine` / `snapshot`)
 - Self-trade prevention (`CancelResting`; account 0 exempt; default off)
 - Order replace (cancel-replace; loses time priority; JSONL `replace`)
+- Mass cancel by account / symbol / side (JSONL `mass_cancel`)
+- Maker/taker fees in bps (tick×qty units; optional rebates)
 
 ## Next (small steps)
 

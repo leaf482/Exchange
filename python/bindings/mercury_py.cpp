@@ -1,4 +1,5 @@
 #include <mercury/engine.hpp>
+#include <mercury/fees.hpp>
 #include <mercury/version.hpp>
 
 #include <pybind11/pybind11.h>
@@ -21,6 +22,10 @@ mercury::RiskLimits make_limits(std::uint64_t max_order_quantity,
   };
 }
 
+mercury::FeeSchedule make_fees(std::int64_t maker_bps, std::int64_t taker_bps) {
+  return mercury::FeeSchedule{.maker_bps = maker_bps, .taker_bps = taker_bps};
+}
+
 py::dict trade_to_dict(const mercury::Trade& trade) {
   return py::dict(
       "maker_id"_a = trade.maker_id.value(),
@@ -29,7 +34,9 @@ py::dict trade_to_dict(const mercury::Trade& trade) {
       "taker_account"_a = trade.taker_account.value(),
       "price"_a = trade.price.ticks(),
       "quantity"_a = trade.quantity.value(),
-      "symbol"_a = trade.symbol.value());
+      "symbol"_a = trade.symbol.value(),
+      "maker_fee"_a = trade.maker_fee,
+      "taker_fee"_a = trade.taker_fee);
 }
 
 py::list trades_to_list(const std::vector<mercury::Trade>& trades) {
@@ -77,18 +84,26 @@ py::dict snapshot_to_dict(const mercury::BookSnapshot& snap) {
                   "spread_ticks"_a = spread);
 }
 
+mercury::Engine make_engine(const mercury::RiskLimits& limits,
+                            mercury::SelfTradePrevention stp,
+                            const mercury::FeeSchedule& fees) {
+  return mercury::Engine{limits, stp, fees};
+}
+
 }  // namespace
 
 PYBIND11_MODULE(mercury_engine, m) {
   using mercury::AccountId;
   using mercury::Engine;
-  using mercury::MarketOrder;
+  using mercury::FeeSchedule;
+  using mercury::MassCancelFilter;
   using mercury::Order;
   using mercury::OrderId;
   using mercury::Price;
   using mercury::Quantity;
   using mercury::RiskDecision;
   using mercury::RiskLimits;
+  using mercury::SelfTradePrevention;
   using mercury::Side;
   using mercury::StopOrder;
   using mercury::Symbol;
@@ -114,6 +129,11 @@ PYBIND11_MODULE(mercury_engine, m) {
       .value("PositionLimit", RiskDecision::PositionLimit)
       .export_values();
 
+  py::enum_<SelfTradePrevention>(m, "SelfTradePrevention")
+      .value("Off", SelfTradePrevention::Off)
+      .value("CancelResting", SelfTradePrevention::CancelResting)
+      .export_values();
+
   py::class_<RiskLimits>(m, "RiskLimits")
       .def(py::init(&make_limits), py::arg("max_order_quantity") = 0,
            py::arg("max_abs_position") = 0)
@@ -124,9 +144,15 @@ PYBIND11_MODULE(mercury_engine, m) {
           "max_abs_position",
           [](const RiskLimits& limits) { return limits.max_abs_position; });
 
+  py::class_<FeeSchedule>(m, "FeeSchedule")
+      .def(py::init(&make_fees), py::arg("maker_bps") = 0, py::arg("taker_bps") = 0)
+      .def_readonly("maker_bps", &FeeSchedule::maker_bps)
+      .def_readonly("taker_bps", &FeeSchedule::taker_bps);
+
   py::class_<Engine>(m, "Engine")
       .def(py::init<>())
-      .def(py::init<RiskLimits>(), py::arg("limits"))
+      .def(py::init(&make_engine), py::arg("limits") = RiskLimits{},
+           py::arg("stp") = SelfTradePrevention::Off, py::arg("fees") = FeeSchedule{})
       .def(
           "add_limit",
           [](Engine& engine, std::uint64_t id, Side side, std::int64_t price,
@@ -149,7 +175,7 @@ PYBIND11_MODULE(mercury_engine, m) {
           "add_market",
           [](Engine& engine, std::uint64_t id, Side side, std::uint64_t quantity,
              std::uint64_t account, std::uint64_t symbol) {
-            return submit_to_dict(engine.add_market(MarketOrder{
+            return submit_to_dict(engine.add_market(mercury::MarketOrder{
                 .id = OrderId{id},
                 .side = side,
                 .quantity = Quantity{quantity},
@@ -190,6 +216,33 @@ PYBIND11_MODULE(mercury_engine, m) {
            },
            py::arg("id"))
       .def(
+          "replace",
+          [](Engine& engine, std::uint64_t id, std::int64_t price,
+             std::uint64_t quantity) -> py::object {
+            auto result = engine.replace(OrderId{id}, Price{price}, Quantity{quantity});
+            if (!result) {
+              return py::none();
+            }
+            return submit_to_dict(*result);
+          },
+          py::arg("id"), py::arg("price"), py::arg("quantity"))
+      .def(
+          "mass_cancel",
+          [](Engine& engine, std::optional<std::uint64_t> account,
+             std::optional<std::uint64_t> symbol, std::optional<Side> side) {
+            MassCancelFilter filter;
+            if (account) {
+              filter.account = AccountId{*account};
+            }
+            if (symbol) {
+              filter.symbol = Symbol{*symbol};
+            }
+            filter.side = side;
+            return engine.mass_cancel(filter);
+          },
+          py::arg("account") = py::none(), py::arg("symbol") = py::none(),
+          py::arg("side") = py::none())
+      .def(
           "snapshot",
           [](const Engine& engine, std::size_t max_levels, std::uint64_t symbol) {
             return snapshot_to_dict(engine.snapshot(max_levels, Symbol{symbol}));
@@ -201,6 +254,12 @@ PYBIND11_MODULE(mercury_engine, m) {
             return engine.positions().quantity(AccountId{account}, Symbol{symbol});
           },
           py::arg("account"), py::arg("symbol") = 0)
+      .def(
+          "fees_paid",
+          [](const Engine& engine, std::uint64_t account) {
+            return engine.fees_paid(AccountId{account});
+          },
+          py::arg("account"))
       .def(
           "last_trade_price",
           [](const Engine& engine, std::uint64_t symbol) -> py::object {

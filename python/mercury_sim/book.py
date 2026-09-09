@@ -130,6 +130,16 @@ class OrderBook:
     def is_live(self, order_id: int) -> bool:
         return order_id in self._index
 
+    def live_orders(self) -> list[Order]:
+        orders: list[Order] = []
+        for order_id, (side, price) in self._index.items():
+            levels = self._bids if side == "buy" else self._asks
+            for order in levels[price]:
+                if order.id == order_id:
+                    orders.append(order)
+                    break
+        return orders
+
     def best_bid(self) -> Optional[int]:
         return max(self._bids) if self._bids else None
 

@@ -162,6 +162,19 @@ inline Event parse_event_line(std::string_view line) {
         .quantity = Quantity{static_cast<std::uint64_t>(detail::require_int(line, "quantity"))},
     };
   }
+  if (type == "mass_cancel") {
+    MassCancelFilter filter;
+    if (detail::field(line, "account")) {
+      filter.account = AccountId{static_cast<std::uint64_t>(detail::require_int(line, "account"))};
+    }
+    if (detail::field(line, "symbol")) {
+      filter.symbol = Symbol{static_cast<std::uint64_t>(detail::require_int(line, "symbol"))};
+    }
+    if (detail::field(line, "side")) {
+      filter.side = detail::parse_side(detail::require_string(line, "side"));
+    }
+    return MassCancelOrder{.filter = filter};
+  }
   if (type == "stop") {
     StopOrder stop{
         .id = OrderId{static_cast<std::uint64_t>(detail::require_int(line, "id"))},
@@ -211,6 +224,18 @@ inline std::string format_event_line(const Event& event) {
               << ",\"id\":" << payload.id.value()
               << ",\"price\":" << payload.price.ticks()
               << ",\"quantity\":" << payload.quantity.value() << '}';
+        } else if constexpr (std::is_same_v<T, MassCancelOrder>) {
+          out << "{\"type\":\"mass_cancel\"";
+          if (payload.filter.account) {
+            out << ",\"account\":" << payload.filter.account->value();
+          }
+          if (payload.filter.symbol) {
+            out << ",\"symbol\":" << payload.filter.symbol->value();
+          }
+          if (payload.filter.side) {
+            out << ",\"side\":\"" << detail::format_side(*payload.filter.side) << '"';
+          }
+          out << '}';
         } else {
           out << "{\"type\":\"stop\""
               << ",\"id\":" << payload.id.value()

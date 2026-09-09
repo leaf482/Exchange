@@ -19,7 +19,7 @@ Engine                     risk -> per-Symbol OrderBook -> positions + working
         +-- Positions      signed qty / PnL per (account, symbol)
         +-- RiskLimits     max order size, max abs position (per symbol)
         |
-EventLog / jsonl           save/load JSONL; Engine replay (limit/market/cancel/stop/replace)
+EventLog / jsonl           Engine replay (limit/market/cancel/stop/replace/mass_cancel)
 ```
 
 ## Matching
@@ -34,6 +34,9 @@ EventLog / jsonl           save/load JSONL; Engine replay (limit/market/cancel/s
   orders (account `0` exempt) and continues matching; default off.
 - Replace: cancel-replace resting GTC by id (new price/qty; qty 0 cancels);
   loses time priority; pending stops are not replaceable.
+- Mass cancel: filter resting orders / stops by account, symbol, and/or side.
+- Fees: optional maker/taker bps on Engine fills (`Trade.maker_fee` /
+  `taker_fee`, cumulative `fees_paid(account)`).
 - Instruments are isolated: orders and last-trade stops never cross symbols.
 - Trade price is the maker (resting) price.
 - Persistence: `jsonl::save_event_log_file` / `load_event_log_file` round-trip

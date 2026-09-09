@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from typing import Literal, Optional
 
 from mercury_sim.book import Order, OrderBook, Trade
-from mercury_sim.events import Event, LimitEvent, MarketEvent, ReplaceEvent, StopEvent
+from mercury_sim.events import Event, LimitEvent, MarketEvent, MassCancelEvent, ReplaceEvent, StopEvent
 
 
 @dataclass
@@ -15,15 +15,26 @@ class _PendingStop:
 class Engine:
     """Python twin of C++ Engine: per-symbol books + last-trade stop triggers."""
 
-    def __init__(self, stp: Literal["off", "cancel_resting"] = "off") -> None:
+    def __init__(
+        self,
+        stp: Literal["off", "cancel_resting"] = "off",
+        maker_bps: int = 0,
+        taker_bps: int = 0,
+    ) -> None:
         self._stp = stp
+        self._maker_bps = maker_bps
+        self._taker_bps = taker_bps
         self._books: dict[int, OrderBook] = {}
         self._stops: dict[int, list[_PendingStop]] = {}
         self._last_trade: dict[int, int] = {}
         self._stop_index: dict[int, int] = {}  # order id -> symbol
+        self._fees_paid: dict[int, int] = {}
 
     def book(self, symbol: int = 0) -> OrderBook:
         return self._books.setdefault(symbol, OrderBook(stp=self._stp))
+
+    def fees_paid(self, account: int) -> int:
+        return self._fees_paid.get(account, 0)
 
     def last_trade_price(self, symbol: int = 0) -> Optional[int]:
         return self._last_trade.get(symbol)
@@ -94,6 +105,39 @@ class Engine:
             return trades
         return None
 
+    def mass_cancel(
+        self,
+        account: Optional[int] = None,
+        symbol: Optional[int] = None,
+        side: Optional[Literal["buy", "sell"]] = None,
+    ) -> int:
+        ids: list[int] = []
+        for sym, pending in self._stops.items():
+            if symbol is not None and sym != symbol:
+                continue
+            for item in pending:
+                event = item.event
+                if account is not None and event.account != account:
+                    continue
+                if side is not None and event.side != side:
+                    continue
+                ids.append(event.id)
+        for sym, book in self._books.items():
+            if symbol is not None and sym != symbol:
+                continue
+            for order in book.live_orders():
+                if account is not None and order.account != account:
+                    continue
+                if side is not None and order.side != side:
+                    continue
+                ids.append(order.id)
+
+        cancelled = 0
+        for order_id in dict.fromkeys(ids):
+            if self.cancel(order_id):
+                cancelled += 1
+        return cancelled
+
     def apply(self, event: Event) -> list[Trade]:
         if isinstance(event, LimitEvent):
             return self.add_limit(event)
@@ -104,10 +148,23 @@ class Engine:
         if isinstance(event, ReplaceEvent):
             trades = self.replace(event.id, event.price, event.quantity)
             return trades if trades is not None else []
+        if isinstance(event, MassCancelEvent):
+            self.mass_cancel(account=event.account, symbol=event.symbol, side=event.side)
+            return []
         self.cancel(event.id)
         return []
 
     def _note_trades(self, symbol: int, trades: list[Trade]) -> None:
+        for trade in trades:
+            notional = trade.price * trade.quantity
+            maker_fee = (notional * self._maker_bps) // 10_000
+            taker_fee = (notional * self._taker_bps) // 10_000
+            self._fees_paid[trade.maker_account] = (
+                self._fees_paid.get(trade.maker_account, 0) + maker_fee
+            )
+            self._fees_paid[trade.taker_account] = (
+                self._fees_paid.get(trade.taker_account, 0) + taker_fee
+            )
         if trades:
             self._last_trade[symbol] = trades[-1].price
 

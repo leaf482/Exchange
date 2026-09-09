@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mercury/fees.hpp"
 #include "mercury/order_book.hpp"
 #include "mercury/positions.hpp"
 #include "mercury/risk.hpp"
@@ -21,12 +22,21 @@ struct SubmitResult {
   std::vector<Trade> trades{};
 };
 
+struct MassCancelFilter {
+  std::optional<AccountId> account;
+  std::optional<Symbol> symbol;
+  std::optional<Side> side;
+
+  constexpr bool operator==(const MassCancelFilter&) const = default;
+};
+
 // Per-symbol OrderBooks + shared Positions, with risk checks and stop orders.
 class Engine {
  public:
   explicit Engine(RiskLimits limits = {},
-                  SelfTradePrevention stp = SelfTradePrevention::Off)
-      : limits_(limits), stp_(stp) {}
+                  SelfTradePrevention stp = SelfTradePrevention::Off,
+                  FeeSchedule fees = {})
+      : limits_(limits), stp_(stp), fees_(fees) {}
 
   SubmitResult add(Order order) {
     const Symbol symbol = order.symbol;
@@ -121,6 +131,32 @@ class Engine {
     });
   }
 
+  // Cancel resting orders and pending stops matching all set filter fields.
+  std::size_t mass_cancel(MassCancelFilter filter = {}) {
+    std::vector<OrderId> ids;
+    ids.reserve(open_orders_.size());
+    for (const auto& [id, open] : open_orders_) {
+      if (filter.account && open.account != *filter.account) {
+        continue;
+      }
+      if (filter.symbol && open.symbol != *filter.symbol) {
+        continue;
+      }
+      if (filter.side && open.side != *filter.side) {
+        continue;
+      }
+      ids.push_back(id);
+    }
+
+    std::size_t cancelled = 0;
+    for (const OrderId id : ids) {
+      if (cancel(id)) {
+        ++cancelled;
+      }
+    }
+    return cancelled;
+  }
+
   BookSnapshot snapshot(std::size_t max_levels, Symbol symbol = Symbol{0}) const {
     const Instrument* inst = find_instrument(symbol);
     return inst ? inst->book.snapshot(max_levels) : BookSnapshot{};
@@ -136,6 +172,14 @@ class Engine {
   }
 
   const Positions& positions() const { return positions_; }
+
+  const FeeSchedule& fees() const { return fees_; }
+
+  // Cumulative fees paid by account (positive = paid; negative = rebate received).
+  std::int64_t fees_paid(AccountId account) const {
+    const auto it = fees_paid_.find(account);
+    return it == fees_paid_.end() ? 0 : it->second;
+  }
 
   std::optional<Price> last_trade_price(Symbol symbol = Symbol{0}) const {
     const Instrument* inst = find_instrument(symbol);
@@ -216,10 +260,17 @@ class Engine {
     }
   }
 
-  void apply_trades(Symbol symbol, Side taker_side, const std::vector<Trade>& trades) {
+  void apply_trades(Symbol symbol, Side taker_side, std::vector<Trade>& trades) {
     Instrument& inst = instrument(symbol);
     const Side maker_side = opposite_side(taker_side);
-    for (const Trade& trade : trades) {
+    for (Trade& trade : trades) {
+      const std::int64_t notional =
+          trade.price.ticks() * static_cast<std::int64_t>(trade.quantity.value());
+      trade.maker_fee = fee_from_notional(notional, fees_.maker_bps);
+      trade.taker_fee = fee_from_notional(notional, fees_.taker_bps);
+      fees_paid_[trade.maker_account] += trade.maker_fee;
+      fees_paid_[trade.taker_account] += trade.taker_fee;
+
       positions_.fill(trade.taker_account, taker_side, trade.price, trade.quantity,
                       symbol);
       positions_.fill(trade.maker_account, maker_side, trade.price, trade.quantity,
@@ -395,10 +446,12 @@ class Engine {
 
   RiskLimits limits_;
   SelfTradePrevention stp_;
+  FeeSchedule fees_;
   std::map<Symbol, Instrument> instruments_;
   Positions positions_;
   std::map<OrderId, OpenOrder> open_orders_;
   std::map<std::pair<AccountId, Symbol>, WorkingExposure> working_;
+  std::map<AccountId, std::int64_t> fees_paid_;
 };
 
 }  // namespace mercury

@@ -66,6 +66,24 @@ class ReplaceTests(unittest.TestCase):
         self.assertEqual(trades[0].quantity, 2)
 
 
+class FeesMassCancelTests(unittest.TestCase):
+    def test_fees_paid(self) -> None:
+        engine = Engine(maker_bps=-10, taker_bps=20)
+        engine.apply(LimitEvent(id=1, side="sell", price=1000, quantity=10, account=1))
+        engine.apply(LimitEvent(id=2, side="buy", price=1000, quantity=10, account=2))
+        self.assertEqual(engine.fees_paid(1), -10)
+        self.assertEqual(engine.fees_paid(2), 20)
+
+    def test_mass_cancel_by_account(self) -> None:
+        from mercury_sim.events import MassCancelEvent
+
+        engine = Engine()
+        engine.apply(LimitEvent(id=1, side="buy", price=100, quantity=1, account=1))
+        engine.apply(LimitEvent(id=2, side="buy", price=99, quantity=1, account=2))
+        engine.apply(MassCancelEvent(account=1))
+        self.assertEqual(engine.book().best_bid(), 99)
+
+
 class EngineStopTests(unittest.TestCase):
     def test_stop_fires_on_last_trade(self) -> None:
         engine = Engine()

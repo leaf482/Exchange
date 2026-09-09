@@ -42,6 +42,25 @@ class EngineBindingsTests(unittest.TestCase):
         self.assertFalse(engine.cancel(1))
         self.assertIsNone(engine.snapshot()["best_bid"])
 
+    def test_replace_fees_mass_cancel(self) -> None:
+        fees = mercury_engine.FeeSchedule(maker_bps=-10, taker_bps=20)
+        engine = mercury_engine.Engine(
+            limits=mercury_engine.RiskLimits(),
+            stp=mercury_engine.SelfTradePrevention.Off,
+            fees=fees,
+        )
+        engine.add_limit(id=1, side=mercury_engine.Side.Sell, price=1000, quantity=10, account=1)
+        fill = engine.add_limit(id=2, side=mercury_engine.Side.Buy, price=1000, quantity=10, account=2)
+        self.assertEqual(fill["trades"][0]["maker_fee"], -10)
+        self.assertEqual(engine.fees_paid(1), -10)
+
+        engine.add_limit(id=3, side=mercury_engine.Side.Buy, price=90, quantity=1, account=3)
+        engine.add_limit(id=4, side=mercury_engine.Side.Buy, price=89, quantity=1, account=4)
+        self.assertEqual(engine.mass_cancel(account=3), 1)
+        replaced = engine.replace(4, 88, 1)
+        self.assertIsNotNone(replaced)
+        self.assertEqual(engine.snapshot()["best_bid"], 88)
+
 
 if __name__ == "__main__":
     unittest.main()
