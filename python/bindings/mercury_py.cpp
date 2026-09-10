@@ -28,6 +28,7 @@ mercury::FeeSchedule make_fees(std::int64_t maker_bps, std::int64_t taker_bps) {
 
 py::dict trade_to_dict(const mercury::Trade& trade) {
   return py::dict(
+      "id"_a = trade.id.value(),
       "maker_id"_a = trade.maker_id.value(),
       "taker_id"_a = trade.taker_id.value(),
       "maker_account"_a = trade.maker_account.value(),
@@ -317,5 +318,7 @@ PYBIND11_MODULE(mercury_engine, m) {
           [](const Engine& engine, std::uint64_t symbol) {
             return engine.pending_stop_count(Symbol{symbol});
           },
-          py::arg("symbol") = 0);
+          py::arg("symbol") = 0)
+      .def("next_trade_id",
+           [](const Engine& engine) { return engine.next_trade_id().value(); });
 }

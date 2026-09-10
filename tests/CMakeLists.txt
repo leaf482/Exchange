@@ -23,6 +23,7 @@ add_executable(mercury_tests
   order_book_post_only_test.cpp
   engine_reduce_only_test.cpp
   engine_pnl_test.cpp
+  engine_trade_id_test.cpp
 )
 target_link_libraries(mercury_tests PRIVATE mercury GTest::gtest_main)
 mercury_set_warnings(mercury_tests)

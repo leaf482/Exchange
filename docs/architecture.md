@@ -41,6 +41,7 @@ EventLog / jsonl           Engine replay (limit/market/cancel/stop/replace/mass_
   `taker_fee`, cumulative `fees_paid(account)`).
 - Instruments are isolated: orders and last-trade stops never cross symbols.
 - Trade price is the maker (resting) price.
+- Engine assigns monotonic `TradeId` on fills (`Trade.id`; starts at 1).
 - Persistence: `jsonl::save_event_log_file` / `load_event_log_file` round-trip
   the event stream (including `tif` / `symbol` / `stop`); `replay(Engine&)` is
   deterministic. Bare `OrderBook` replay rejects stop events.

@@ -18,6 +18,7 @@ using mercury::Price;
 using mercury::Quantity;
 using mercury::Side;
 using mercury::StopOrder;
+using mercury::TradeId;
 using mercury::apply;
 using mercury::replay;
 
@@ -134,5 +135,12 @@ TEST(EventLog, EngineReplayMatchesBookForPlainEvents) {
 
   OrderBook book;
   Engine engine;
-  EXPECT_EQ(replay(book, log), replay(engine, log));
+  const auto book_trades = replay(book, log);
+  auto engine_trades = replay(engine, log);
+  ASSERT_EQ(book_trades.size(), engine_trades.size());
+  for (std::size_t i = 0; i < book_trades.size(); ++i) {
+    EXPECT_EQ(book_trades[i].id, TradeId{0});
+    engine_trades[i].id = TradeId{0};  // Engine stamps ids; book leaves 0
+    EXPECT_EQ(book_trades[i], engine_trades[i]);
+  }
 }

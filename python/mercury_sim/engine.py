@@ -32,12 +32,16 @@ class Engine:
         self._positions: dict[tuple[int, int], int] = {}
         self._avg_ticks: dict[tuple[int, int], int] = {}
         self._realized: dict[tuple[int, int], int] = {}
+        self._next_trade_id = 1
 
     def book(self, symbol: int = 0) -> OrderBook:
         return self._books.setdefault(symbol, OrderBook(stp=self._stp))
 
     def position(self, account: int, symbol: int = 0) -> int:
         return self._positions.get((account, symbol), 0)
+
+    def next_trade_id(self) -> int:
+        return self._next_trade_id
 
     def realized_pnl(self, account: int, symbol: int = 0) -> int:
         return self._realized.get((account, symbol), 0)
@@ -213,7 +217,20 @@ class Engine:
     def _note_trades(
         self, symbol: int, trades: list[Trade], taker_side: Literal["buy", "sell"]
     ) -> None:
+        stamped: list[Trade] = []
         for trade in trades:
+            stamped.append(
+                Trade(
+                    maker_id=trade.maker_id,
+                    taker_id=trade.taker_id,
+                    maker_account=trade.maker_account,
+                    taker_account=trade.taker_account,
+                    price=trade.price,
+                    quantity=trade.quantity,
+                    id=self._next_trade_id,
+                )
+            )
+            self._next_trade_id += 1
             notional = trade.price * trade.quantity
             maker_fee = (notional * self._maker_bps) // 10_000
             taker_fee = (notional * self._taker_bps) // 10_000
@@ -226,8 +243,9 @@ class Engine:
             delta = trade.quantity if taker_side == "buy" else -trade.quantity
             self._apply_fill(trade.taker_account, symbol, delta, trade.price)
             self._apply_fill(trade.maker_account, symbol, -delta, trade.price)
-        if trades:
-            self._last_trade[symbol] = trades[-1].price
+        trades[:] = stamped
+        if stamped:
+            self._last_trade[symbol] = stamped[-1].price
 
     def _apply_fill(self, account: int, symbol: int, delta: int, price: int) -> None:
         key = (account, symbol)

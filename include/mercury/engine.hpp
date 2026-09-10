@@ -229,6 +229,9 @@ class Engine {
     return inst ? inst->stops.size() : 0;
   }
 
+  // Next id that will be assigned (starts at 1).
+  TradeId next_trade_id() const { return TradeId{next_trade_id_}; }
+
  private:
   struct WorkingExposure {
     std::uint64_t buy = 0;
@@ -302,6 +305,7 @@ class Engine {
     Instrument& inst = instrument(symbol);
     const Side maker_side = opposite_side(taker_side);
     for (Trade& trade : trades) {
+      trade.id = TradeId{next_trade_id_++};
       const std::int64_t notional =
           trade.price.ticks() * static_cast<std::int64_t>(trade.quantity.value());
       trade.maker_fee = fee_from_notional(notional, fees_.maker_bps);
@@ -507,6 +511,7 @@ class Engine {
   std::map<OrderId, OpenOrder> open_orders_;
   std::map<std::pair<AccountId, Symbol>, WorkingExposure> working_;
   std::map<AccountId, std::int64_t> fees_paid_;
+  std::uint64_t next_trade_id_{1};
 };
 
 }  // namespace mercury

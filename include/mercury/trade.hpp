@@ -15,6 +15,8 @@ struct Trade {
   // Signed fee in tick*qty units (positive = account pays). Set by Engine.
   std::int64_t maker_fee{0};
   std::int64_t taker_fee{0};
+  // Assigned by Engine (monotonic from 1). Bare OrderBook leaves 0.
+  TradeId id{0};
 
   constexpr bool operator==(const Trade&) const = default;
 };

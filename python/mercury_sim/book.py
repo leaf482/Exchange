@@ -26,9 +26,11 @@ class Trade:
     taker_account: int
     price: int
     quantity: int
+    id: int = 0
 
     def to_dict(self) -> dict:
         return {
+            "id": self.id,
             "maker_id": self.maker_id,
             "taker_id": self.taker_id,
             "maker_account": self.maker_account,

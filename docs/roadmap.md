@@ -22,6 +22,7 @@ Incremental work only. Correctness and measurement before concurrency.
 - Post-only limits (`post_only`; Engine `RiskDecision::PostOnly`)
 - Reduce-only limits/markets (no open / increase / flip; `RiskDecision::ReduceOnly`)
 - Unrealized PnL marked at last trade or mid (`MarkSource`; default last trade)
+- Monotonic `TradeId` stamped by Engine (OrderBook leaves 0)
 
 ## Next (small steps)
 

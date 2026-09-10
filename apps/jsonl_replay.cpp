@@ -20,7 +20,8 @@ int main(int argc, char** argv) {
   const auto trades = mercury::replay(engine, log);
 
   for (const auto& trade : trades) {
-    std::cout << "{\"maker_id\":" << trade.maker_id.value()
+    std::cout << "{\"id\":" << trade.id.value()
+              << ",\"maker_id\":" << trade.maker_id.value()
               << ",\"taker_id\":" << trade.taker_id.value()
               << ",\"maker_account\":" << trade.maker_account.value()
               << ",\"taker_account\":" << trade.taker_account.value()
