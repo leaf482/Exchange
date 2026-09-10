@@ -17,6 +17,7 @@ Engine                     risk -> per-Symbol OrderBook -> positions + working
         +-- OrderBook      bids/asks of PriceLevel (price-time priority)
         |                    snapshot(depth) -> BookSnapshot
         +-- Positions      signed qty / realized + unrealized (last-trade or mid mark)
+        +-- Balances       cash (tick×qty); optional enforce on buys
         +-- RiskLimits     max order size, max abs position (per symbol)
         |
 EventLog / jsonl           Engine replay (limit/market/cancel/stop/replace/mass_cancel)
@@ -39,6 +40,8 @@ EventLog / jsonl           Engine replay (limit/market/cancel/stop/replace/mass_
 - Mass cancel: filter resting orders / stops by account, symbol, and/or side.
 - Fees: optional maker/taker bps on Engine fills (`Trade.maker_fee` /
   `taker_fee`, cumulative `fees_paid(account)`).
+- Cash: Engine ledger in tick×qty; buys debit notional (+fee), sells credit
+  (−fee). Optional `enforce_cash` rejects buys that exceed available cash.
 - Instruments are isolated: orders and last-trade stops never cross symbols.
 - Trade price is the maker (resting) price.
 - Engine assigns monotonic `TradeId` on fills (`Trade.id`; starts at 1).

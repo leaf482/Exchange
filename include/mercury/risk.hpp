@@ -12,8 +12,9 @@ enum class RiskDecision : std::uint8_t {
   Accept,
   OrderTooLarge,
   PositionLimit,
-  PostOnly,    // would take liquidity
-  ReduceOnly,  // would open, increase, or flip position
+  PostOnly,           // would take liquidity
+  ReduceOnly,         // would open, increase, or flip position
+  InsufficientCash,   // buy notional exceeds cash (when enforced)
 };
 
 struct RiskLimits {

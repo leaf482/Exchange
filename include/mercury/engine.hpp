@@ -1,5 +1,6 @@
 #pragma once
 
+#include "mercury/balances.hpp"
 #include "mercury/fees.hpp"
 #include "mercury/order_book.hpp"
 #include "mercury/positions.hpp"
@@ -37,8 +38,19 @@ class Engine {
  public:
   explicit Engine(RiskLimits limits = {},
                   SelfTradePrevention stp = SelfTradePrevention::Off,
-                  FeeSchedule fees = {})
-      : limits_(limits), stp_(stp), fees_(fees) {}
+                  FeeSchedule fees = {},
+                  bool enforce_cash = false)
+      : limits_(limits), stp_(stp), fees_(fees), enforce_cash_(enforce_cash) {}
+
+  void set_enforce_cash(bool enabled) { enforce_cash_ = enabled; }
+
+  bool enforce_cash() const { return enforce_cash_; }
+
+  void set_cash(AccountId account, std::int64_t amount) {
+    balances_.set_cash(account, amount);
+  }
+
+  std::int64_t cash(AccountId account) const { return balances_.cash(account); }
 
   SubmitResult add(Order order) {
     const Symbol symbol = order.symbol;
@@ -313,6 +325,15 @@ class Engine {
       fees_paid_[trade.maker_account] += trade.maker_fee;
       fees_paid_[trade.taker_account] += trade.taker_fee;
 
+      // Buyers pay notional; sellers receive notional; both pay their fee.
+      if (taker_side == Side::Buy) {
+        balances_.adjust(trade.taker_account, -(notional + trade.taker_fee));
+        balances_.adjust(trade.maker_account, notional - trade.maker_fee);
+      } else {
+        balances_.adjust(trade.taker_account, notional - trade.taker_fee);
+        balances_.adjust(trade.maker_account, -(notional + trade.maker_fee));
+      }
+
       positions_.fill(trade.taker_account, taker_side, trade.price, trade.quantity,
                       symbol);
       positions_.fill(trade.maker_account, maker_side, trade.price, trade.quantity,
@@ -442,6 +463,13 @@ class Engine {
     if (order.post_only && instrument(symbol).book.would_take(order)) {
       return SubmitResult{.decision = RiskDecision::PostOnly};
     }
+    if (order.side == Side::Buy) {
+      const RiskDecision cash =
+          check_buy_cash(account, symbol, order.price, order.quantity, false);
+      if (cash != RiskDecision::Accept) {
+        return SubmitResult{.decision = cash};
+      }
+    }
 
     const OrderId id = order.id;
     const Side taker_side = order.side;
@@ -482,6 +510,13 @@ class Engine {
         return SubmitResult{.decision = reduce};
       }
     }
+    if (order.side == Side::Buy) {
+      const RiskDecision cash =
+          check_buy_cash(account, symbol, Price{0}, order.quantity, true);
+      if (cash != RiskDecision::Accept) {
+        return SubmitResult{.decision = cash};
+      }
+    }
 
     const Side taker_side = order.side;
     auto trades = instrument(symbol).book.add_market(std::move(order));
@@ -503,9 +538,39 @@ class Engine {
     }
   }
 
+  // Worst-case buy cost at limit price, or walking asks for market (available liquidity only).
+  RiskDecision check_buy_cash(AccountId account, Symbol symbol, Price limit,
+                              Quantity quantity, bool is_market) const {
+    if (!enforce_cash_) {
+      return RiskDecision::Accept;
+    }
+
+    std::int64_t need = 0;
+    if (!is_market) {
+      need = limit.ticks() * static_cast<std::int64_t>(quantity.value());
+    } else {
+      std::uint64_t remaining = quantity.value();
+      for (const BookLevel& level : book(symbol).snapshot(256).asks) {
+        if (remaining == 0) {
+          break;
+        }
+        const std::uint64_t take = std::min(remaining, level.quantity.value());
+        need += level.price.ticks() * static_cast<std::int64_t>(take);
+        remaining -= take;
+      }
+    }
+
+    if (balances_.cash(account) < need) {
+      return RiskDecision::InsufficientCash;
+    }
+    return RiskDecision::Accept;
+  }
+
   RiskLimits limits_;
   SelfTradePrevention stp_;
   FeeSchedule fees_;
+  bool enforce_cash_{false};
+  Balances balances_;
   std::map<Symbol, Instrument> instruments_;
   Positions positions_;
   std::map<OrderId, OpenOrder> open_orders_;

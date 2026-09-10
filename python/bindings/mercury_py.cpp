@@ -87,8 +87,9 @@ py::dict snapshot_to_dict(const mercury::BookSnapshot& snap) {
 
 mercury::Engine make_engine(const mercury::RiskLimits& limits,
                             mercury::SelfTradePrevention stp,
-                            const mercury::FeeSchedule& fees) {
-  return mercury::Engine{limits, stp, fees};
+                            const mercury::FeeSchedule& fees,
+                            bool enforce_cash) {
+  return mercury::Engine{limits, stp, fees, enforce_cash};
 }
 
 }  // namespace
@@ -131,6 +132,7 @@ PYBIND11_MODULE(mercury_engine, m) {
       .value("PositionLimit", RiskDecision::PositionLimit)
       .value("PostOnly", RiskDecision::PostOnly)
       .value("ReduceOnly", RiskDecision::ReduceOnly)
+      .value("InsufficientCash", RiskDecision::InsufficientCash)
       .export_values();
 
   py::enum_<SelfTradePrevention>(m, "SelfTradePrevention")
@@ -161,7 +163,8 @@ PYBIND11_MODULE(mercury_engine, m) {
   py::class_<Engine>(m, "Engine")
       .def(py::init<>())
       .def(py::init(&make_engine), py::arg("limits") = RiskLimits{},
-           py::arg("stp") = SelfTradePrevention::Off, py::arg("fees") = FeeSchedule{})
+           py::arg("stp") = SelfTradePrevention::Off, py::arg("fees") = FeeSchedule{},
+           py::arg("enforce_cash") = false)
       .def(
           "add_limit",
           [](Engine& engine, std::uint64_t id, Side side, std::int64_t price,
@@ -320,5 +323,19 @@ PYBIND11_MODULE(mercury_engine, m) {
           },
           py::arg("symbol") = 0)
       .def("next_trade_id",
-           [](const Engine& engine) { return engine.next_trade_id().value(); });
+           [](const Engine& engine) { return engine.next_trade_id().value(); })
+      .def(
+          "cash",
+          [](const Engine& engine, std::uint64_t account) {
+            return engine.cash(AccountId{account});
+          },
+          py::arg("account"))
+      .def(
+          "set_cash",
+          [](Engine& engine, std::uint64_t account, std::int64_t amount) {
+            engine.set_cash(AccountId{account}, amount);
+          },
+          py::arg("account"), py::arg("amount"))
+      .def("set_enforce_cash", &Engine::set_enforce_cash, py::arg("enabled"))
+      .def("enforce_cash", &Engine::enforce_cash);
 }

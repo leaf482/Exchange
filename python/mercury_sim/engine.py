@@ -20,10 +20,12 @@ class Engine:
         stp: Literal["off", "cancel_resting"] = "off",
         maker_bps: int = 0,
         taker_bps: int = 0,
+        enforce_cash: bool = False,
     ) -> None:
         self._stp = stp
         self._maker_bps = maker_bps
         self._taker_bps = taker_bps
+        self._enforce_cash = enforce_cash
         self._books: dict[int, OrderBook] = {}
         self._stops: dict[int, list[_PendingStop]] = {}
         self._last_trade: dict[int, int] = {}
@@ -33,9 +35,19 @@ class Engine:
         self._avg_ticks: dict[tuple[int, int], int] = {}
         self._realized: dict[tuple[int, int], int] = {}
         self._next_trade_id = 1
+        self._cash: dict[int, int] = {}
 
     def book(self, symbol: int = 0) -> OrderBook:
         return self._books.setdefault(symbol, OrderBook(stp=self._stp))
+
+    def cash(self, account: int) -> int:
+        return self._cash.get(account, 0)
+
+    def set_cash(self, account: int, amount: int) -> None:
+        self._cash[account] = amount
+
+    def set_enforce_cash(self, enabled: bool) -> None:
+        self._enforce_cash = enabled
 
     def position(self, account: int, symbol: int = 0) -> int:
         return self._positions.get((account, symbol), 0)
@@ -89,6 +101,12 @@ class Engine:
             event.account, event.side, event.quantity, event.symbol
         ):
             return []
+        if (
+            self._enforce_cash
+            and event.side == "buy"
+            and self.cash(event.account) < event.price * event.quantity
+        ):
+            return []
         order = Order(
             id=event.id,
             side=event.side,
@@ -110,6 +128,18 @@ class Engine:
             event.account, event.side, event.quantity, event.symbol
         ):
             return []
+        if self._enforce_cash and event.side == "buy":
+            need = 0
+            remaining = event.quantity
+            snap = self.book(event.symbol).snapshot(256)
+            for level in snap.asks:
+                if remaining <= 0:
+                    break
+                take = min(remaining, level.quantity)
+                need += level.price * take
+                remaining -= take
+            if self.cash(event.account) < need:
+                return []
         order = Order(
             id=event.id,
             side=event.side,
@@ -231,6 +261,9 @@ class Engine:
                 )
             )
             self._next_trade_id += 1
+            delta = trade.quantity if taker_side == "buy" else -trade.quantity
+            self._apply_fill(trade.taker_account, symbol, delta, trade.price)
+            self._apply_fill(trade.maker_account, symbol, -delta, trade.price)
             notional = trade.price * trade.quantity
             maker_fee = (notional * self._maker_bps) // 10_000
             taker_fee = (notional * self._taker_bps) // 10_000
@@ -240,9 +273,20 @@ class Engine:
             self._fees_paid[trade.taker_account] = (
                 self._fees_paid.get(trade.taker_account, 0) + taker_fee
             )
-            delta = trade.quantity if taker_side == "buy" else -trade.quantity
-            self._apply_fill(trade.taker_account, symbol, delta, trade.price)
-            self._apply_fill(trade.maker_account, symbol, -delta, trade.price)
+            if taker_side == "buy":
+                self._cash[trade.taker_account] = (
+                    self.cash(trade.taker_account) - (notional + taker_fee)
+                )
+                self._cash[trade.maker_account] = (
+                    self.cash(trade.maker_account) + (notional - maker_fee)
+                )
+            else:
+                self._cash[trade.taker_account] = (
+                    self.cash(trade.taker_account) + (notional - taker_fee)
+                )
+                self._cash[trade.maker_account] = (
+                    self.cash(trade.maker_account) - (notional + maker_fee)
+                )
         trades[:] = stamped
         if stamped:
             self._last_trade[symbol] = stamped[-1].price
