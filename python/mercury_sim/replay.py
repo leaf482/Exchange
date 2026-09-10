@@ -10,6 +10,7 @@ from mercury_sim.events import (
     LimitEvent,
     MarketEvent,
     MassCancelEvent,
+    RejectEvent,
     ReplaceEvent,
     StopEvent,
     read_jsonl,
@@ -49,6 +50,8 @@ def apply_event(book: OrderBook, event: Event) -> list[Trade]:
         return trades if trades is not None else []
     if isinstance(event, MassCancelEvent):
         raise ValueError("mass_cancel events require Engine replay")
+    if isinstance(event, RejectEvent):
+        return []
     book.cancel(event.id)
     return []
 

@@ -133,6 +133,46 @@ inline bool optional_bool(std::string_view line, std::string_view key, bool fall
   throw std::runtime_error("invalid bool field: " + std::string(key));
 }
 
+inline RiskDecision parse_decision(std::string_view decision) {
+  if (decision == "accept") {
+    return RiskDecision::Accept;
+  }
+  if (decision == "order_too_large") {
+    return RiskDecision::OrderTooLarge;
+  }
+  if (decision == "position_limit") {
+    return RiskDecision::PositionLimit;
+  }
+  if (decision == "post_only") {
+    return RiskDecision::PostOnly;
+  }
+  if (decision == "reduce_only") {
+    return RiskDecision::ReduceOnly;
+  }
+  if (decision == "insufficient_cash") {
+    return RiskDecision::InsufficientCash;
+  }
+  throw std::runtime_error("invalid decision");
+}
+
+inline const char* format_decision(RiskDecision decision) {
+  switch (decision) {
+    case RiskDecision::Accept:
+      return "accept";
+    case RiskDecision::OrderTooLarge:
+      return "order_too_large";
+    case RiskDecision::PositionLimit:
+      return "position_limit";
+    case RiskDecision::PostOnly:
+      return "post_only";
+    case RiskDecision::ReduceOnly:
+      return "reduce_only";
+    case RiskDecision::InsufficientCash:
+      return "insufficient_cash";
+  }
+  return "accept";
+}
+
 }  // namespace detail
 
 inline Event parse_event_line(std::string_view line) {
@@ -212,6 +252,70 @@ inline Event parse_event_line(std::string_view line) {
     }
     return stop;
   }
+  if (type == "reject") {
+    const RiskDecision decision =
+        detail::parse_decision(detail::require_string(line, "decision"));
+    const std::string order_type = detail::require_string(line, "order_type");
+    if (order_type == "limit") {
+      return RejectEvent{
+          .decision = decision,
+          .attempt = Order{
+              .id = OrderId{static_cast<std::uint64_t>(detail::require_int(line, "id"))},
+              .side = detail::parse_side(detail::require_string(line, "side")),
+              .price = Price{detail::require_int(line, "price")},
+              .quantity = Quantity{static_cast<std::uint64_t>(
+                  detail::require_int(line, "quantity"))},
+              .account = AccountId{static_cast<std::uint64_t>(
+                  detail::field(line, "account") ? detail::require_int(line, "account")
+                                                 : 0)},
+              .tif = detail::optional_tif(line),
+              .symbol = Symbol{static_cast<std::uint64_t>(
+                  detail::field(line, "symbol") ? detail::require_int(line, "symbol")
+                                                : 0)},
+              .post_only = detail::optional_bool(line, "post_only"),
+              .reduce_only = detail::optional_bool(line, "reduce_only"),
+          },
+      };
+    }
+    if (order_type == "market") {
+      return RejectEvent{
+          .decision = decision,
+          .attempt = MarketOrder{
+              .id = OrderId{static_cast<std::uint64_t>(detail::require_int(line, "id"))},
+              .side = detail::parse_side(detail::require_string(line, "side")),
+              .quantity = Quantity{static_cast<std::uint64_t>(
+                  detail::require_int(line, "quantity"))},
+              .account = AccountId{static_cast<std::uint64_t>(
+                  detail::field(line, "account") ? detail::require_int(line, "account")
+                                                 : 0)},
+              .symbol = Symbol{static_cast<std::uint64_t>(
+                  detail::field(line, "symbol") ? detail::require_int(line, "symbol")
+                                                : 0)},
+              .reduce_only = detail::optional_bool(line, "reduce_only"),
+          },
+      };
+    }
+    if (order_type == "stop") {
+      StopOrder stop{
+          .id = OrderId{static_cast<std::uint64_t>(detail::require_int(line, "id"))},
+          .side = detail::parse_side(detail::require_string(line, "side")),
+          .stop_price = Price{detail::require_int(line, "stop_price")},
+          .quantity = Quantity{static_cast<std::uint64_t>(
+              detail::require_int(line, "quantity"))},
+          .account = AccountId{static_cast<std::uint64_t>(
+              detail::field(line, "account") ? detail::require_int(line, "account") : 0)},
+          .limit_price = std::nullopt,
+          .tif = detail::optional_tif(line),
+          .symbol = Symbol{static_cast<std::uint64_t>(
+              detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
+      };
+      if (detail::field(line, "limit_price")) {
+        stop.limit_price = Price{detail::require_int(line, "limit_price")};
+      }
+      return RejectEvent{.decision = decision, .attempt = std::move(stop)};
+    }
+    throw std::runtime_error("invalid reject order_type");
+  }
   throw std::runtime_error("unknown event type: " + type);
 }
 
@@ -265,6 +369,53 @@ inline std::string format_event_line(const Event& event) {
           if (payload.filter.side) {
             out << ",\"side\":\"" << detail::format_side(*payload.filter.side) << '"';
           }
+          out << '}';
+        } else if constexpr (std::is_same_v<T, RejectEvent>) {
+          out << "{\"type\":\"reject\""
+              << ",\"decision\":\"" << detail::format_decision(payload.decision) << '"';
+          std::visit(
+              [&](const auto& attempt) {
+                using A = std::decay_t<decltype(attempt)>;
+                if constexpr (std::is_same_v<A, Order>) {
+                  out << ",\"order_type\":\"limit\""
+                      << ",\"id\":" << attempt.id.value()
+                      << ",\"side\":\"" << detail::format_side(attempt.side) << '"'
+                      << ",\"price\":" << attempt.price.ticks()
+                      << ",\"quantity\":" << attempt.quantity.value()
+                      << ",\"account\":" << attempt.account.value()
+                      << ",\"tif\":\"" << detail::format_tif(attempt.tif) << '"'
+                      << ",\"symbol\":" << attempt.symbol.value();
+                  if (attempt.post_only) {
+                    out << ",\"post_only\":true";
+                  }
+                  if (attempt.reduce_only) {
+                    out << ",\"reduce_only\":true";
+                  }
+                } else if constexpr (std::is_same_v<A, MarketOrder>) {
+                  out << ",\"order_type\":\"market\""
+                      << ",\"id\":" << attempt.id.value()
+                      << ",\"side\":\"" << detail::format_side(attempt.side) << '"'
+                      << ",\"quantity\":" << attempt.quantity.value()
+                      << ",\"account\":" << attempt.account.value()
+                      << ",\"symbol\":" << attempt.symbol.value();
+                  if (attempt.reduce_only) {
+                    out << ",\"reduce_only\":true";
+                  }
+                } else {
+                  out << ",\"order_type\":\"stop\""
+                      << ",\"id\":" << attempt.id.value()
+                      << ",\"side\":\"" << detail::format_side(attempt.side) << '"'
+                      << ",\"stop_price\":" << attempt.stop_price.ticks()
+                      << ",\"quantity\":" << attempt.quantity.value()
+                      << ",\"account\":" << attempt.account.value();
+                  if (attempt.limit_price) {
+                    out << ",\"limit_price\":" << attempt.limit_price->ticks();
+                  }
+                  out << ",\"tif\":\"" << detail::format_tif(attempt.tif) << '"'
+                      << ",\"symbol\":" << attempt.symbol.value();
+                }
+              },
+              payload.attempt);
           out << '}';
         } else {
           out << "{\"type\":\"stop\""

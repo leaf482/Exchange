@@ -25,6 +25,7 @@ add_executable(mercury_tests
   engine_pnl_test.cpp
   engine_trade_id_test.cpp
   engine_cash_test.cpp
+  event_reject_test.cpp
 )
 target_link_libraries(mercury_tests PRIVATE mercury GTest::gtest_main)
 mercury_set_warnings(mercury_tests)

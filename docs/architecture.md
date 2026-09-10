@@ -20,7 +20,7 @@ Engine                     risk -> per-Symbol OrderBook -> positions + working
         +-- Balances       cash (tick×qty); optional enforce on buys
         +-- RiskLimits     max order size, max abs position (per symbol)
         |
-EventLog / jsonl           Engine replay (limit/market/cancel/stop/replace/mass_cancel)
+EventLog / jsonl           Engine replay (+ reject audit no-ops)
 ```
 
 ## Matching
@@ -43,6 +43,8 @@ EventLog / jsonl           Engine replay (limit/market/cancel/stop/replace/mass_
 - Cash: Engine ledger in tick×qty; buys debit notional (+fee), sells credit
   (−fee). Optional `enforce_cash` rejects buys that exceed available cash
   (`cash - reserved`); resting GTC buys reserve `price * qty` until fill/cancel.
+- Reject audit: JSONL `reject` records `RiskDecision` + attempted order; replay
+  ignores it (session/audit only).
 - Instruments are isolated: orders and last-trade stops never cross symbols.
 - Trade price is the maker (resting) price.
 - Engine assigns monotonic `TradeId` on fills (`Trade.id`; starts at 1).
@@ -64,5 +66,5 @@ EventLog / jsonl           Engine replay (limit/market/cancel/stop/replace/mass_
 
 ## Non-goals (for now)
 
-Multithreading, lock-free structures, networking, databases, and Python
-bindings to the C++ engine. Correctness and measurement come first.
+Multithreading, lock-free structures, networking, and databases in the matching
+hot path. Correctness and measurement come first.

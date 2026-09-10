@@ -65,7 +65,37 @@ class StopEvent:
     type: Literal["stop"] = "stop"
 
 
-Event = Union[LimitEvent, MarketEvent, CancelEvent, ReplaceEvent, MassCancelEvent, StopEvent]
+Decision = Literal[
+    "accept",
+    "order_too_large",
+    "position_limit",
+    "post_only",
+    "reduce_only",
+    "insufficient_cash",
+]
+
+
+@dataclass(frozen=True)
+class RejectEvent:
+    decision: Decision
+    order_type: Literal["limit", "market", "stop"]
+    id: int
+    side: Literal["buy", "sell"]
+    quantity: int
+    account: int = 0
+    price: Optional[int] = None
+    stop_price: Optional[int] = None
+    limit_price: Optional[int] = None
+    tif: Literal["gtc", "ioc", "fok"] = "gtc"
+    symbol: int = 0
+    post_only: bool = False
+    reduce_only: bool = False
+    type: Literal["reject"] = "reject"
+
+
+Event = Union[
+    LimitEvent, MarketEvent, CancelEvent, ReplaceEvent, MassCancelEvent, StopEvent, RejectEvent
+]
 
 
 def event_to_dict(event: Event) -> dict:
@@ -79,6 +109,25 @@ def event_to_dict(event: Event) -> dict:
             del data["reduce_only"]
     if isinstance(event, MarketEvent) and not event.reduce_only:
         del data["reduce_only"]
+    if isinstance(event, RejectEvent):
+        data = {k: v for k, v in data.items() if v is not None or k == "type"}
+        if event.order_type != "limit" or not event.post_only:
+            data.pop("post_only", None)
+        if not event.reduce_only:
+            data.pop("reduce_only", None)
+        if event.order_type != "limit":
+            data.pop("tif", None)
+        if event.order_type == "market":
+            data.pop("price", None)
+            data.pop("stop_price", None)
+            data.pop("limit_price", None)
+        if event.order_type == "limit":
+            data.pop("stop_price", None)
+            data.pop("limit_price", None)
+        if event.order_type == "stop":
+            data.pop("price", None)
+            if event.limit_price is None:
+                data.pop("limit_price", None)
     if isinstance(event, MassCancelEvent):
         data = {k: v for k, v in data.items() if v is not None or k == "type"}
     return data
@@ -131,6 +180,22 @@ def event_from_dict(data: dict) -> Event:
             limit_price=data.get("limit_price"),
             tif=data.get("tif", "gtc"),
             symbol=data.get("symbol", 0),
+        )
+    if kind == "reject":
+        return RejectEvent(
+            decision=data["decision"],
+            order_type=data["order_type"],
+            id=data["id"],
+            side=data["side"],
+            quantity=data["quantity"],
+            account=data.get("account", 0),
+            price=data.get("price"),
+            stop_price=data.get("stop_price"),
+            limit_price=data.get("limit_price"),
+            tif=data.get("tif", "gtc"),
+            symbol=data.get("symbol", 0),
+            post_only=bool(data.get("post_only", False)),
+            reduce_only=bool(data.get("reduce_only", False)),
         )
     raise ValueError(f"unknown event type: {kind}")
 

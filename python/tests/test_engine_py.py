@@ -169,6 +169,25 @@ class FeesMassCancelTests(unittest.TestCase):
         self.assertEqual(engine.reserved_cash(1), 0)
         self.assertEqual(engine.available_cash(1), 1000)
 
+    def test_reject_event_noop(self) -> None:
+        from mercury_sim.events import RejectEvent, event_from_dict, event_to_dict
+
+        engine = Engine()
+        engine.apply(LimitEvent(id=1, side="sell", price=100, quantity=1, account=1))
+        reject = RejectEvent(
+            decision="post_only",
+            order_type="limit",
+            id=2,
+            side="buy",
+            quantity=1,
+            account=2,
+            price=100,
+            post_only=True,
+        )
+        self.assertEqual(engine.apply(reject), [])
+        self.assertEqual(engine.book().best_ask(), 100)
+        self.assertEqual(event_from_dict(event_to_dict(reject)), reject)
+
 
 class EngineStopTests(unittest.TestCase):
     def test_stop_fires_on_last_trade(self) -> None:

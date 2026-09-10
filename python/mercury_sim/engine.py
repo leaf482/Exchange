@@ -4,7 +4,15 @@ from dataclasses import dataclass
 from typing import Literal, Optional
 
 from mercury_sim.book import Order, OrderBook, Trade
-from mercury_sim.events import Event, LimitEvent, MarketEvent, MassCancelEvent, ReplaceEvent, StopEvent
+from mercury_sim.events import (
+    Event,
+    LimitEvent,
+    MarketEvent,
+    MassCancelEvent,
+    RejectEvent,
+    ReplaceEvent,
+    StopEvent,
+)
 
 
 @dataclass
@@ -268,6 +276,8 @@ class Engine:
             return trades if trades is not None else []
         if isinstance(event, MassCancelEvent):
             self.mass_cancel(account=event.account, symbol=event.symbol, side=event.side)
+            return []
+        if isinstance(event, RejectEvent):
             return []
         self.cancel(event.id)
         return []

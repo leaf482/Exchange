@@ -33,8 +33,30 @@ struct MassCancelOrder {
   constexpr bool operator==(const MassCancelOrder&) const = default;
 };
 
-using Event =
-    std::variant<Order, MarketOrder, CancelOrder, StopOrder, ReplaceOrder, MassCancelOrder>;
+// Audit/session record of a rejected submit. Replay is a no-op.
+struct RejectEvent {
+  RiskDecision decision{RiskDecision::Accept};
+  std::variant<Order, MarketOrder, StopOrder> attempt;
+
+  bool operator==(const RejectEvent& other) const {
+    return decision == other.decision && attempt == other.attempt;
+  }
+};
+
+inline RejectEvent make_reject(RiskDecision decision, Order order) {
+  return RejectEvent{.decision = decision, .attempt = std::move(order)};
+}
+
+inline RejectEvent make_reject(RiskDecision decision, MarketOrder order) {
+  return RejectEvent{.decision = decision, .attempt = std::move(order)};
+}
+
+inline RejectEvent make_reject(RiskDecision decision, StopOrder order) {
+  return RejectEvent{.decision = decision, .attempt = std::move(order)};
+}
+
+using Event = std::variant<Order, MarketOrder, CancelOrder, StopOrder, ReplaceOrder,
+                           MassCancelOrder, RejectEvent>;
 
 class EventLog {
  public:
@@ -69,6 +91,8 @@ inline std::vector<Trade> apply(OrderBook& book, const Event& event) {
           return replaced ? std::move(*replaced) : std::vector<Trade>{};
         } else if constexpr (std::is_same_v<T, MassCancelOrder>) {
           throw std::runtime_error("mass_cancel events require Engine replay");
+        } else if constexpr (std::is_same_v<T, RejectEvent>) {
+          return {};
         } else {
           throw std::runtime_error("stop events require Engine replay");
         }
@@ -102,6 +126,8 @@ inline SubmitResult apply(Engine& engine, const Event& event) {
                           : SubmitResult{.decision = RiskDecision::Accept};
         } else if constexpr (std::is_same_v<T, MassCancelOrder>) {
           engine.mass_cancel(payload.filter);
+          return SubmitResult{.decision = RiskDecision::Accept};
+        } else if constexpr (std::is_same_v<T, RejectEvent>) {
           return SubmitResult{.decision = RiskDecision::Accept};
         } else {
           return engine.add_stop(payload);
