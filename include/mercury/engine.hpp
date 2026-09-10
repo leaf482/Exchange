@@ -390,6 +390,9 @@ class Engine {
     if (decision != RiskDecision::Accept) {
       return SubmitResult{.decision = decision};
     }
+    if (order.post_only && instrument(symbol).book.would_take(order)) {
+      return SubmitResult{.decision = RiskDecision::PostOnly};
+    }
 
     const OrderId id = order.id;
     const Side taker_side = order.side;

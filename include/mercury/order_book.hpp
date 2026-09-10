@@ -59,9 +59,23 @@ class OrderBook {
 
   SelfTradePrevention self_trade_prevention() const { return stp_; }
 
+  // True if a limit at this price would immediately match.
+  bool would_take(const Order& order) const {
+    if (order.side == Side::Buy) {
+      const auto ask = best_ask();
+      return ask && order.price >= *ask;
+    }
+    const auto bid = best_bid();
+    return bid && order.price <= *bid;
+  }
+
   // Match against the opposite side. GTC rests remainder; IOC/FOK do not.
+  // post_only that would take returns no trades and does not rest.
   std::vector<Trade> add(Order order) {
     stp_cancels_.clear();
+    if (order.post_only && would_take(order)) {
+      return {};
+    }
     if (order.tif == TimeInForce::Fok && !can_fully_fill(order)) {
       return {};
     }
@@ -137,6 +151,7 @@ class OrderBook {
         .account = original->account,
         .tif = TimeInForce::Gtc,
         .symbol = original->symbol,
+        .post_only = original->post_only,
     });
   }
 

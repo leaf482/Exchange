@@ -117,6 +117,22 @@ inline TimeInForce optional_tif(std::string_view line) {
   return value ? parse_tif(*value) : TimeInForce::Gtc;
 }
 
+inline bool optional_bool(std::string_view line, std::string_view key, bool fallback = false) {
+  const std::string pattern = "\"" + std::string(key) + "\":";
+  const auto pos = line.find(pattern);
+  if (pos == std::string_view::npos) {
+    return fallback;
+  }
+  std::string_view value = trim(line.substr(pos + pattern.size()));
+  if (value.size() >= 4 && value.substr(0, 4) == "true") {
+    return true;
+  }
+  if (value.size() >= 5 && value.substr(0, 5) == "false") {
+    return false;
+  }
+  throw std::runtime_error("invalid bool field: " + std::string(key));
+}
+
 }  // namespace detail
 
 inline Event parse_event_line(std::string_view line) {
@@ -137,6 +153,7 @@ inline Event parse_event_line(std::string_view line) {
         .tif = detail::optional_tif(line),
         .symbol = Symbol{static_cast<std::uint64_t>(
             detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
+        .post_only = detail::optional_bool(line, "post_only"),
     };
   }
   if (type == "market") {
@@ -209,7 +226,11 @@ inline std::string format_event_line(const Event& event) {
               << ",\"quantity\":" << payload.quantity.value()
               << ",\"account\":" << payload.account.value()
               << ",\"tif\":\"" << detail::format_tif(payload.tif) << '"'
-              << ",\"symbol\":" << payload.symbol.value() << '}';
+              << ",\"symbol\":" << payload.symbol.value();
+          if (payload.post_only) {
+            out << ",\"post_only\":true";
+          }
+          out << '}';
         } else if constexpr (std::is_same_v<T, MarketOrder>) {
           out << "{\"type\":\"market\""
               << ",\"id\":" << payload.id.value()

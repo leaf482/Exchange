@@ -54,6 +54,7 @@ class Engine:
             account=event.account,
             tif=event.tif,
             symbol=event.symbol,
+            post_only=event.post_only,
         )
         trades = self.book(event.symbol).add_limit(order)
         self._note_trades(event.symbol, trades)

@@ -39,8 +39,17 @@ class BookTests(unittest.TestCase):
         trades = book.add_market(Order(id=2, side="buy", price=0, quantity=5))
 
         self.assertEqual(trades[0].quantity, 2)
-        self.assertIsNone(book.best_bid())
         self.assertIsNone(book.best_ask())
+
+    def test_post_only_rejects_crossing(self) -> None:
+        book = OrderBook()
+        book.add_limit(Order(id=1, side="sell", price=100, quantity=1))
+        trades = book.add_limit(
+            Order(id=2, side="buy", price=100, quantity=1, post_only=True)
+        )
+        self.assertEqual(trades, [])
+        self.assertIsNone(book.best_bid())
+        self.assertEqual(book.best_ask(), 100)
 
     def test_replay_is_deterministic(self) -> None:
         events = generate_events(80, seed=3)

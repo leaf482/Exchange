@@ -30,6 +30,7 @@ def apply_event(book: OrderBook, event: Event) -> list[Trade]:
                 account=event.account,
                 tif=event.tif,
                 symbol=event.symbol,
+                post_only=event.post_only,
             )
         )
     if isinstance(event, MarketEvent):

@@ -14,6 +14,7 @@ class LimitEvent:
     account: int = 0
     tif: Literal["gtc", "ioc", "fok"] = "gtc"
     symbol: int = 0
+    post_only: bool = False
     type: Literal["limit"] = "limit"
 
 
@@ -69,6 +70,8 @@ def event_to_dict(event: Event) -> dict:
     data = asdict(event)
     if isinstance(event, StopEvent) and event.limit_price is None:
         del data["limit_price"]
+    if isinstance(event, LimitEvent) and not event.post_only:
+        del data["post_only"]
     if isinstance(event, MassCancelEvent):
         data = {k: v for k, v in data.items() if v is not None or k == "type"}
     return data
@@ -85,6 +88,7 @@ def event_from_dict(data: dict) -> Event:
             account=data.get("account", 0),
             tif=data.get("tif", "gtc"),
             symbol=data.get("symbol", 0),
+            post_only=bool(data.get("post_only", False)),
         )
     if kind == "market":
         return MarketEvent(

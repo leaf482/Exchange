@@ -19,6 +19,7 @@ Incremental work only. Correctness and measurement before concurrency.
 - Order replace (cancel-replace; loses time priority; JSONL `replace`)
 - Mass cancel by account / symbol / side (JSONL `mass_cancel`)
 - Maker/taker fees in bps (tick×qty units; optional rebates)
+- Post-only limits (`post_only`; Engine `RiskDecision::PostOnly`)
 
 ## Next (small steps)
 

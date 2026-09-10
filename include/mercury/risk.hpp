@@ -12,6 +12,7 @@ enum class RiskDecision : std::uint8_t {
   Accept,
   OrderTooLarge,
   PositionLimit,
+  PostOnly,  // would take liquidity
 };
 
 struct RiskLimits {

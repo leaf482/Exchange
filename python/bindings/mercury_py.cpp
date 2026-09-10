@@ -127,6 +127,7 @@ PYBIND11_MODULE(mercury_engine, m) {
       .value("Accept", RiskDecision::Accept)
       .value("OrderTooLarge", RiskDecision::OrderTooLarge)
       .value("PositionLimit", RiskDecision::PositionLimit)
+      .value("PostOnly", RiskDecision::PostOnly)
       .export_values();
 
   py::enum_<SelfTradePrevention>(m, "SelfTradePrevention")
@@ -157,7 +158,7 @@ PYBIND11_MODULE(mercury_engine, m) {
           "add_limit",
           [](Engine& engine, std::uint64_t id, Side side, std::int64_t price,
              std::uint64_t quantity, std::uint64_t account, TimeInForce tif,
-             std::uint64_t symbol) {
+             std::uint64_t symbol, bool post_only) {
             return submit_to_dict(engine.add(Order{
                 .id = OrderId{id},
                 .side = side,
@@ -166,11 +167,12 @@ PYBIND11_MODULE(mercury_engine, m) {
                 .account = AccountId{account},
                 .tif = tif,
                 .symbol = Symbol{symbol},
+                .post_only = post_only,
             }));
           },
           py::arg("id"), py::arg("side"), py::arg("price"), py::arg("quantity"),
           py::arg("account") = 0, py::arg("tif") = TimeInForce::Gtc,
-          py::arg("symbol") = 0)
+          py::arg("symbol") = 0, py::arg("post_only") = false)
       .def(
           "add_market",
           [](Engine& engine, std::uint64_t id, Side side, std::uint64_t quantity,

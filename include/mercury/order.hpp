@@ -20,6 +20,7 @@ struct Order {
   AccountId account{0};
   TimeInForce tif{TimeInForce::Gtc};
   Symbol symbol{0};
+  bool post_only{false};  // reject if the order would take liquidity
 
   constexpr bool operator==(const Order&) const = default;
 };

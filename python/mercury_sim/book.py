@@ -14,6 +14,7 @@ class Order:
     account: int = 0
     tif: Literal["gtc", "ioc", "fok"] = "gtc"
     symbol: int = 0
+    post_only: bool = False
 
 
 @dataclass(frozen=True)
@@ -77,6 +78,8 @@ class OrderBook:
 
     def add_limit(self, order: Order) -> list[Trade]:
         self._stp_cancels = []
+        if order.post_only and self._would_take(order):
+            return []
         if order.tif == "fok" and not self._can_fully_fill(order):
             return []
 
@@ -121,6 +124,7 @@ class OrderBook:
             account=original.account,
             tif="gtc",
             symbol=original.symbol,
+            post_only=original.post_only,
         )
         self.cancel(order_id)
         if quantity == 0:
@@ -171,6 +175,13 @@ class OrderBook:
             for price in sorted(self._asks)[:max_levels]
         )
         return BookSnapshot(bids=bids, asks=asks)
+
+    def _would_take(self, order: Order) -> bool:
+        if order.side == "buy":
+            ask = self.best_ask()
+            return ask is not None and order.price >= ask
+        bid = self.best_bid()
+        return bid is not None and order.price <= bid
 
     def _can_fully_fill(self, order: Order) -> bool:
         available = 0
