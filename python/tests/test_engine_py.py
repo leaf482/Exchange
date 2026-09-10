@@ -155,6 +155,20 @@ class FeesMassCancelTests(unittest.TestCase):
         )
         self.assertEqual(engine.cash(3), 100)
 
+    def test_cash_reserves_resting_buy(self) -> None:
+        engine = Engine(enforce_cash=True)
+        engine.set_cash(1, 1000)
+        engine.apply(LimitEvent(id=1, side="buy", price=100, quantity=5, account=1))
+        self.assertEqual(engine.reserved_cash(1), 500)
+        self.assertEqual(engine.available_cash(1), 500)
+        self.assertEqual(
+            engine.apply(LimitEvent(id=2, side="buy", price=100, quantity=6, account=1)),
+            [],
+        )
+        engine.cancel(1)
+        self.assertEqual(engine.reserved_cash(1), 0)
+        self.assertEqual(engine.available_cash(1), 1000)
+
 
 class EngineStopTests(unittest.TestCase):
     def test_stop_fires_on_last_trade(self) -> None:

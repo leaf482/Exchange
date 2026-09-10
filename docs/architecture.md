@@ -41,7 +41,8 @@ EventLog / jsonl           Engine replay (limit/market/cancel/stop/replace/mass_
 - Fees: optional maker/taker bps on Engine fills (`Trade.maker_fee` /
   `taker_fee`, cumulative `fees_paid(account)`).
 - Cash: Engine ledger in tick×qty; buys debit notional (+fee), sells credit
-  (−fee). Optional `enforce_cash` rejects buys that exceed available cash.
+  (−fee). Optional `enforce_cash` rejects buys that exceed available cash
+  (`cash - reserved`); resting GTC buys reserve `price * qty` until fill/cancel.
 - Instruments are isolated: orders and last-trade stops never cross symbols.
 - Trade price is the maker (resting) price.
 - Engine assigns monotonic `TradeId` on fills (`Trade.id`; starts at 1).

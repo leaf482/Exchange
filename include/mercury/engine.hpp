@@ -52,6 +52,14 @@ class Engine {
 
   std::int64_t cash(AccountId account) const { return balances_.cash(account); }
 
+  std::int64_t reserved_cash(AccountId account) const {
+    return balances_.reserved(account);
+  }
+
+  std::int64_t available_cash(AccountId account) const {
+    return balances_.available(account);
+  }
+
   SubmitResult add(Order order) {
     const Symbol symbol = order.symbol;
     auto result = submit_limit(std::move(order));
@@ -255,6 +263,7 @@ class Engine {
     AccountId account;
     Side side;
     Quantity remaining;
+    Price price{0};  // set for book rests (cash reservation); 0 for pending stops
   };
 
   struct Instrument {
@@ -283,13 +292,17 @@ class Engine {
   }
 
   void add_open(OrderId id, Symbol symbol, AccountId account, Side side,
-                Quantity quantity) {
-    open_orders_.insert_or_assign(id, OpenOrder{symbol, account, side, quantity});
+                Quantity quantity, Price price = Price{0}) {
+    open_orders_.insert_or_assign(id, OpenOrder{symbol, account, side, quantity, price});
     WorkingExposure& exposure = working_[{account, symbol}];
     if (side == Side::Buy) {
       exposure.buy += quantity.value();
     } else {
       exposure.sell += quantity.value();
+    }
+    if (enforce_cash_ && side == Side::Buy && price.ticks() != 0) {
+      balances_.reserve(account,
+                        price.ticks() * static_cast<std::int64_t>(quantity.value()));
     }
   }
 
@@ -305,6 +318,11 @@ class Engine {
       exposure.buy -= fill.value();
     } else {
       exposure.sell -= fill.value();
+    }
+    if (enforce_cash_ && open.side == Side::Buy && open.price.ticks() != 0) {
+      balances_.release(
+          open.account,
+          open.price.ticks() * static_cast<std::int64_t>(fill.value()));
     }
 
     open.remaining = open.remaining - fill;
@@ -475,6 +493,7 @@ class Engine {
     const Side taker_side = order.side;
     const Quantity original = order.quantity;
     const TimeInForce tif = order.tif;
+    const Price order_price = order.price;
     auto trades = instrument(symbol).book.add(std::move(order));
     clear_stp_cancels(symbol);
 
@@ -486,7 +505,7 @@ class Engine {
 
     const Quantity rested{original.value() - filled.value()};
     if (tif == TimeInForce::Gtc && !rested.is_zero()) {
-      add_open(id, symbol, account, taker_side, rested);
+      add_open(id, symbol, account, taker_side, rested, order_price);
     }
 
     apply_trades(symbol, taker_side, trades);
@@ -560,7 +579,7 @@ class Engine {
       }
     }
 
-    if (balances_.cash(account) < need) {
+    if (balances_.available(account) < need) {
       return RiskDecision::InsufficientCash;
     }
     return RiskDecision::Accept;

@@ -23,7 +23,7 @@ Incremental work only. Correctness and measurement before concurrency.
 - Reduce-only limits/markets (no open / increase / flip; `RiskDecision::ReduceOnly`)
 - Unrealized PnL marked at last trade or mid (`MarkSource`; default last trade)
 - Monotonic `TradeId` stamped by Engine (OrderBook leaves 0)
-- Account cash ledger (tick×qty); optional buy cash enforcement
+- Account cash ledger (tick×qty); optional buy cash enforcement + resting reserve
 
 ## Next (small steps)
 

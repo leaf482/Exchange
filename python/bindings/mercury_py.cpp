@@ -331,6 +331,18 @@ PYBIND11_MODULE(mercury_engine, m) {
           },
           py::arg("account"))
       .def(
+          "reserved_cash",
+          [](const Engine& engine, std::uint64_t account) {
+            return engine.reserved_cash(AccountId{account});
+          },
+          py::arg("account"))
+      .def(
+          "available_cash",
+          [](const Engine& engine, std::uint64_t account) {
+            return engine.available_cash(AccountId{account});
+          },
+          py::arg("account"))
+      .def(
           "set_cash",
           [](Engine& engine, std::uint64_t account, std::int64_t amount) {
             engine.set_cash(AccountId{account}, amount);
