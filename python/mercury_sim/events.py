@@ -15,6 +15,7 @@ class LimitEvent:
     tif: Literal["gtc", "ioc", "fok"] = "gtc"
     symbol: int = 0
     post_only: bool = False
+    reduce_only: bool = False
     type: Literal["limit"] = "limit"
 
 
@@ -25,6 +26,7 @@ class MarketEvent:
     quantity: int
     account: int = 0
     symbol: int = 0
+    reduce_only: bool = False
     type: Literal["market"] = "market"
 
 
@@ -70,8 +72,13 @@ def event_to_dict(event: Event) -> dict:
     data = asdict(event)
     if isinstance(event, StopEvent) and event.limit_price is None:
         del data["limit_price"]
-    if isinstance(event, LimitEvent) and not event.post_only:
-        del data["post_only"]
+    if isinstance(event, LimitEvent):
+        if not event.post_only:
+            del data["post_only"]
+        if not event.reduce_only:
+            del data["reduce_only"]
+    if isinstance(event, MarketEvent) and not event.reduce_only:
+        del data["reduce_only"]
     if isinstance(event, MassCancelEvent):
         data = {k: v for k, v in data.items() if v is not None or k == "type"}
     return data
@@ -89,6 +96,7 @@ def event_from_dict(data: dict) -> Event:
             tif=data.get("tif", "gtc"),
             symbol=data.get("symbol", 0),
             post_only=bool(data.get("post_only", False)),
+            reduce_only=bool(data.get("reduce_only", False)),
         )
     if kind == "market":
         return MarketEvent(
@@ -97,6 +105,7 @@ def event_from_dict(data: dict) -> Event:
             quantity=data["quantity"],
             account=data.get("account", 0),
             symbol=data.get("symbol", 0),
+            reduce_only=bool(data.get("reduce_only", False)),
         )
     if kind == "cancel":
         return CancelEvent(id=data["id"])

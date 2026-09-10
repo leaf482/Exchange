@@ -128,6 +128,7 @@ PYBIND11_MODULE(mercury_engine, m) {
       .value("OrderTooLarge", RiskDecision::OrderTooLarge)
       .value("PositionLimit", RiskDecision::PositionLimit)
       .value("PostOnly", RiskDecision::PostOnly)
+      .value("ReduceOnly", RiskDecision::ReduceOnly)
       .export_values();
 
   py::enum_<SelfTradePrevention>(m, "SelfTradePrevention")
@@ -158,7 +159,7 @@ PYBIND11_MODULE(mercury_engine, m) {
           "add_limit",
           [](Engine& engine, std::uint64_t id, Side side, std::int64_t price,
              std::uint64_t quantity, std::uint64_t account, TimeInForce tif,
-             std::uint64_t symbol, bool post_only) {
+             std::uint64_t symbol, bool post_only, bool reduce_only) {
             return submit_to_dict(engine.add(Order{
                 .id = OrderId{id},
                 .side = side,
@@ -168,25 +169,29 @@ PYBIND11_MODULE(mercury_engine, m) {
                 .tif = tif,
                 .symbol = Symbol{symbol},
                 .post_only = post_only,
+                .reduce_only = reduce_only,
             }));
           },
           py::arg("id"), py::arg("side"), py::arg("price"), py::arg("quantity"),
           py::arg("account") = 0, py::arg("tif") = TimeInForce::Gtc,
-          py::arg("symbol") = 0, py::arg("post_only") = false)
+          py::arg("symbol") = 0, py::arg("post_only") = false,
+          py::arg("reduce_only") = false)
       .def(
           "add_market",
           [](Engine& engine, std::uint64_t id, Side side, std::uint64_t quantity,
-             std::uint64_t account, std::uint64_t symbol) {
+             std::uint64_t account, std::uint64_t symbol, bool reduce_only) {
             return submit_to_dict(engine.add_market(mercury::MarketOrder{
                 .id = OrderId{id},
                 .side = side,
                 .quantity = Quantity{quantity},
                 .account = AccountId{account},
                 .symbol = Symbol{symbol},
+                .reduce_only = reduce_only,
             }));
           },
           py::arg("id"), py::arg("side"), py::arg("quantity"),
-          py::arg("account") = 0, py::arg("symbol") = 0)
+          py::arg("account") = 0, py::arg("symbol") = 0,
+          py::arg("reduce_only") = false)
       .def(
           "add_stop",
           [](Engine& engine, std::uint64_t id, Side side, std::int64_t stop_price,

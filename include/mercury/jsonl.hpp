@@ -154,6 +154,7 @@ inline Event parse_event_line(std::string_view line) {
         .symbol = Symbol{static_cast<std::uint64_t>(
             detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
         .post_only = detail::optional_bool(line, "post_only"),
+        .reduce_only = detail::optional_bool(line, "reduce_only"),
     };
   }
   if (type == "market") {
@@ -165,6 +166,7 @@ inline Event parse_event_line(std::string_view line) {
             detail::field(line, "account") ? detail::require_int(line, "account") : 0)},
         .symbol = Symbol{static_cast<std::uint64_t>(
             detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
+        .reduce_only = detail::optional_bool(line, "reduce_only"),
     };
   }
   if (type == "cancel") {
@@ -230,6 +232,9 @@ inline std::string format_event_line(const Event& event) {
           if (payload.post_only) {
             out << ",\"post_only\":true";
           }
+          if (payload.reduce_only) {
+            out << ",\"reduce_only\":true";
+          }
           out << '}';
         } else if constexpr (std::is_same_v<T, MarketOrder>) {
           out << "{\"type\":\"market\""
@@ -237,7 +242,11 @@ inline std::string format_event_line(const Event& event) {
               << ",\"side\":\"" << detail::format_side(payload.side) << '"'
               << ",\"quantity\":" << payload.quantity.value()
               << ",\"account\":" << payload.account.value()
-              << ",\"symbol\":" << payload.symbol.value() << '}';
+              << ",\"symbol\":" << payload.symbol.value();
+          if (payload.reduce_only) {
+            out << ",\"reduce_only\":true";
+          }
+          out << '}';
         } else if constexpr (std::is_same_v<T, CancelOrder>) {
           out << "{\"type\":\"cancel\",\"id\":" << payload.id.value() << '}';
         } else if constexpr (std::is_same_v<T, ReplaceOrder>) {

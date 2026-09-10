@@ -15,6 +15,7 @@ class Order:
     tif: Literal["gtc", "ioc", "fok"] = "gtc"
     symbol: int = 0
     post_only: bool = False
+    reduce_only: bool = False
 
 
 @dataclass(frozen=True)

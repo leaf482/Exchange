@@ -12,7 +12,8 @@ enum class RiskDecision : std::uint8_t {
   Accept,
   OrderTooLarge,
   PositionLimit,
-  PostOnly,  // would take liquidity
+  PostOnly,    // would take liquidity
+  ReduceOnly,  // would open, increase, or flip position
 };
 
 struct RiskLimits {
@@ -56,6 +57,24 @@ inline RiskDecision check_order(const RiskLimits& limits,
     }
   }
 
+  return RiskDecision::Accept;
+}
+
+// Buy only closes short; sell only closes long. Qty may not exceed |position|.
+inline RiskDecision check_reduce_only(const Positions& positions,
+                                      AccountId account,
+                                      Side side,
+                                      Quantity quantity,
+                                      Symbol symbol = Symbol{0}) {
+  const std::int64_t pos = positions.quantity(account, symbol);
+  const std::int64_t qty = static_cast<std::int64_t>(quantity.value());
+  if (side == Side::Buy) {
+    if (pos >= 0 || qty > -pos) {
+      return RiskDecision::ReduceOnly;
+    }
+  } else if (pos <= 0 || qty > pos) {
+    return RiskDecision::ReduceOnly;
+  }
   return RiskDecision::Accept;
 }
 

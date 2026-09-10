@@ -20,7 +20,8 @@ struct Order {
   AccountId account{0};
   TimeInForce tif{TimeInForce::Gtc};
   Symbol symbol{0};
-  bool post_only{false};  // reject if the order would take liquidity
+  bool post_only{false};   // reject if the order would take liquidity
+  bool reduce_only{false};  // reject unless it shrinks existing position (no flip)
 
   constexpr bool operator==(const Order&) const = default;
 };
@@ -31,6 +32,7 @@ struct MarketOrder {
   Quantity quantity;
   AccountId account{0};
   Symbol symbol{0};
+  bool reduce_only{false};
 
   constexpr bool operator==(const MarketOrder&) const = default;
 };

@@ -390,6 +390,13 @@ class Engine {
     if (decision != RiskDecision::Accept) {
       return SubmitResult{.decision = decision};
     }
+    if (order.reduce_only) {
+      const RiskDecision reduce =
+          check_reduce_only(positions_, account, order.side, order.quantity, symbol);
+      if (reduce != RiskDecision::Accept) {
+        return SubmitResult{.decision = reduce};
+      }
+    }
     if (order.post_only && instrument(symbol).book.would_take(order)) {
       return SubmitResult{.decision = RiskDecision::PostOnly};
     }
@@ -425,6 +432,13 @@ class Engine {
                     exposure.buy, exposure.sell, symbol);
     if (decision != RiskDecision::Accept) {
       return SubmitResult{.decision = decision};
+    }
+    if (order.reduce_only) {
+      const RiskDecision reduce =
+          check_reduce_only(positions_, account, order.side, order.quantity, symbol);
+      if (reduce != RiskDecision::Accept) {
+        return SubmitResult{.decision = reduce};
+      }
     }
 
     const Side taker_side = order.side;

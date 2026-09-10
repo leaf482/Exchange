@@ -83,6 +83,28 @@ class FeesMassCancelTests(unittest.TestCase):
         engine.apply(MassCancelEvent(account=1))
         self.assertEqual(engine.book().best_bid(), 99)
 
+    def test_reduce_only(self) -> None:
+        from mercury_sim.events import MarketEvent
+
+        engine = Engine()
+        engine.apply(LimitEvent(id=1, side="buy", price=100, quantity=3, account=1))
+        engine.apply(LimitEvent(id=2, side="sell", price=100, quantity=3, account=2))
+        self.assertEqual(engine.position(1), 3)
+        engine.apply(LimitEvent(id=3, side="buy", price=100, quantity=3, account=3))
+        trades = engine.apply(
+            MarketEvent(id=4, side="sell", quantity=3, account=1, reduce_only=True)
+        )
+        self.assertEqual(len(trades), 1)
+        self.assertEqual(engine.position(1), 0)
+        self.assertEqual(
+            engine.apply(
+                LimitEvent(
+                    id=5, side="buy", price=100, quantity=1, account=1, reduce_only=True
+                )
+            ),
+            [],
+        )
+
 
 class EngineStopTests(unittest.TestCase):
     def test_stop_fires_on_last_trade(self) -> None:

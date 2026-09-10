@@ -21,6 +21,7 @@ add_executable(mercury_tests
   order_replace_test.cpp
   engine_fees_mass_test.cpp
   order_book_post_only_test.cpp
+  engine_reduce_only_test.cpp
 )
 target_link_libraries(mercury_tests PRIVATE mercury GTest::gtest_main)
 mercury_set_warnings(mercury_tests)

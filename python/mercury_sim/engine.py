@@ -29,9 +29,13 @@ class Engine:
         self._last_trade: dict[int, int] = {}
         self._stop_index: dict[int, int] = {}  # order id -> symbol
         self._fees_paid: dict[int, int] = {}
+        self._positions: dict[tuple[int, int], int] = {}
 
     def book(self, symbol: int = 0) -> OrderBook:
         return self._books.setdefault(symbol, OrderBook(stp=self._stp))
+
+    def position(self, account: int, symbol: int = 0) -> int:
+        return self._positions.get((account, symbol), 0)
 
     def fees_paid(self, account: int) -> int:
         return self._fees_paid.get(account, 0)
@@ -46,6 +50,10 @@ class Engine:
         return self.book(symbol).snapshot(max_levels)
 
     def add_limit(self, event: LimitEvent) -> list[Trade]:
+        if event.reduce_only and not self._allows_reduce_only(
+            event.account, event.side, event.quantity, event.symbol
+        ):
+            return []
         order = Order(
             id=event.id,
             side=event.side,
@@ -55,13 +63,18 @@ class Engine:
             tif=event.tif,
             symbol=event.symbol,
             post_only=event.post_only,
+            reduce_only=event.reduce_only,
         )
         trades = self.book(event.symbol).add_limit(order)
-        self._note_trades(event.symbol, trades)
+        self._note_trades(event.symbol, trades, event.side)
         trades.extend(self._drain_stops(event.symbol))
         return trades
 
     def add_market(self, event: MarketEvent) -> list[Trade]:
+        if event.reduce_only and not self._allows_reduce_only(
+            event.account, event.side, event.quantity, event.symbol
+        ):
+            return []
         order = Order(
             id=event.id,
             side=event.side,
@@ -69,9 +82,10 @@ class Engine:
             quantity=event.quantity,
             account=event.account,
             symbol=event.symbol,
+            reduce_only=event.reduce_only,
         )
         trades = self.book(event.symbol).add_market(order)
-        self._note_trades(event.symbol, trades)
+        self._note_trades(event.symbol, trades, event.side)
         trades.extend(self._drain_stops(event.symbol))
         return trades
 
@@ -98,10 +112,12 @@ class Engine:
         if order_id in self._stop_index:
             return None
         for symbol, book in self._books.items():
+            original = next((o for o in book.live_orders() if o.id == order_id), None)
             trades = book.replace(order_id, price, quantity)
             if trades is None:
                 continue
-            self._note_trades(symbol, trades)
+            side = original.side if original is not None else "buy"
+            self._note_trades(symbol, trades, side)
             trades.extend(self._drain_stops(symbol))
             return trades
         return None
@@ -155,7 +171,17 @@ class Engine:
         self.cancel(event.id)
         return []
 
-    def _note_trades(self, symbol: int, trades: list[Trade]) -> None:
+    def _allows_reduce_only(
+        self, account: int, side: Literal["buy", "sell"], quantity: int, symbol: int
+    ) -> bool:
+        pos = self.position(account, symbol)
+        if side == "buy":
+            return pos < 0 and quantity <= -pos
+        return pos > 0 and quantity <= pos
+
+    def _note_trades(
+        self, symbol: int, trades: list[Trade], taker_side: Literal["buy", "sell"]
+    ) -> None:
         for trade in trades:
             notional = trade.price * trade.quantity
             maker_fee = (notional * self._maker_bps) // 10_000
@@ -165,6 +191,13 @@ class Engine:
             )
             self._fees_paid[trade.taker_account] = (
                 self._fees_paid.get(trade.taker_account, 0) + taker_fee
+            )
+            delta = trade.quantity if taker_side == "buy" else -trade.quantity
+            self._positions[(trade.taker_account, symbol)] = (
+                self.position(trade.taker_account, symbol) + delta
+            )
+            self._positions[(trade.maker_account, symbol)] = (
+                self.position(trade.maker_account, symbol) - delta
             )
         if trades:
             self._last_trade[symbol] = trades[-1].price

@@ -20,6 +20,7 @@ Incremental work only. Correctness and measurement before concurrency.
 - Mass cancel by account / symbol / side (JSONL `mass_cancel`)
 - Maker/taker fees in bps (tick×qty units; optional rebates)
 - Post-only limits (`post_only`; Engine `RiskDecision::PostOnly`)
+- Reduce-only limits/markets (no open / increase / flip; `RiskDecision::ReduceOnly`)
 
 ## Next (small steps)
 
