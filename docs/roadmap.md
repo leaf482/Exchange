@@ -21,6 +21,7 @@ Incremental work only. Correctness and measurement before concurrency.
 - Maker/taker fees in bps (tick×qty units; optional rebates)
 - Post-only limits (`post_only`; Engine `RiskDecision::PostOnly`)
 - Reduce-only limits/markets (no open / increase / flip; `RiskDecision::ReduceOnly`)
+- Unrealized PnL marked at last trade (`Engine::unrealized_pnl`)
 
 ## Next (small steps)
 

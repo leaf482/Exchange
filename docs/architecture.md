@@ -16,7 +16,7 @@ Engine                     risk -> per-Symbol OrderBook -> positions + working
         |
         +-- OrderBook      bids/asks of PriceLevel (price-time priority)
         |                    snapshot(depth) -> BookSnapshot
-        +-- Positions      signed qty / PnL per (account, symbol)
+        +-- Positions      signed qty / realized + unrealized (last-trade mark)
         +-- RiskLimits     max order size, max abs position (per symbol)
         |
 EventLog / jsonl           Engine replay (limit/market/cancel/stop/replace/mass_cancel)

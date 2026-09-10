@@ -262,6 +262,23 @@ PYBIND11_MODULE(mercury_engine, m) {
           },
           py::arg("account"), py::arg("symbol") = 0)
       .def(
+          "realized_pnl",
+          [](const Engine& engine, std::uint64_t account, std::uint64_t symbol) {
+            return engine.realized_pnl(AccountId{account}, Symbol{symbol});
+          },
+          py::arg("account"), py::arg("symbol") = 0)
+      .def(
+          "unrealized_pnl",
+          [](const Engine& engine, std::uint64_t account,
+             std::uint64_t symbol) -> py::object {
+            const auto pnl = engine.unrealized_pnl(AccountId{account}, Symbol{symbol});
+            if (!pnl) {
+              return py::none();
+            }
+            return py::int_(*pnl);
+          },
+          py::arg("account"), py::arg("symbol") = 0)
+      .def(
           "fees_paid",
           [](const Engine& engine, std::uint64_t account) {
             return engine.fees_paid(AccountId{account});

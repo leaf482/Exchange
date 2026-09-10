@@ -186,6 +186,20 @@ class Engine {
     return inst ? inst->last_trade_price : std::nullopt;
   }
 
+  std::int64_t realized_pnl(AccountId account, Symbol symbol = Symbol{0}) const {
+    return positions_.realized_pnl(account, symbol);
+  }
+
+  // Marked at last trade; nullopt if the symbol has no last trade yet.
+  std::optional<std::int64_t> unrealized_pnl(AccountId account,
+                                             Symbol symbol = Symbol{0}) const {
+    const auto mark = last_trade_price(symbol);
+    if (!mark) {
+      return std::nullopt;
+    }
+    return positions_.unrealized_pnl(account, *mark, symbol);
+  }
+
   std::size_t pending_stop_count(Symbol symbol = Symbol{0}) const {
     const Instrument* inst = find_instrument(symbol);
     return inst ? inst->stops.size() : 0;

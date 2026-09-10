@@ -30,12 +30,26 @@ class Engine:
         self._stop_index: dict[int, int] = {}  # order id -> symbol
         self._fees_paid: dict[int, int] = {}
         self._positions: dict[tuple[int, int], int] = {}
+        self._avg_ticks: dict[tuple[int, int], int] = {}
+        self._realized: dict[tuple[int, int], int] = {}
 
     def book(self, symbol: int = 0) -> OrderBook:
         return self._books.setdefault(symbol, OrderBook(stp=self._stp))
 
     def position(self, account: int, symbol: int = 0) -> int:
         return self._positions.get((account, symbol), 0)
+
+    def realized_pnl(self, account: int, symbol: int = 0) -> int:
+        return self._realized.get((account, symbol), 0)
+
+    def unrealized_pnl(self, account: int, symbol: int = 0) -> Optional[int]:
+        mark = self._last_trade.get(symbol)
+        if mark is None:
+            return None
+        qty = self.position(account, symbol)
+        if qty == 0:
+            return 0
+        return (mark - self._avg_ticks.get((account, symbol), 0)) * qty
 
     def fees_paid(self, account: int) -> int:
         return self._fees_paid.get(account, 0)
@@ -193,14 +207,38 @@ class Engine:
                 self._fees_paid.get(trade.taker_account, 0) + taker_fee
             )
             delta = trade.quantity if taker_side == "buy" else -trade.quantity
-            self._positions[(trade.taker_account, symbol)] = (
-                self.position(trade.taker_account, symbol) + delta
-            )
-            self._positions[(trade.maker_account, symbol)] = (
-                self.position(trade.maker_account, symbol) - delta
-            )
+            self._apply_fill(trade.taker_account, symbol, delta, trade.price)
+            self._apply_fill(trade.maker_account, symbol, -delta, trade.price)
         if trades:
             self._last_trade[symbol] = trades[-1].price
+
+    def _apply_fill(self, account: int, symbol: int, delta: int, price: int) -> None:
+        key = (account, symbol)
+        qty = self._positions.get(key, 0)
+        avg = self._avg_ticks.get(key, 0)
+        realized = self._realized.get(key, 0)
+
+        if qty == 0 or (qty > 0) == (delta > 0):
+            abs_old = abs(qty)
+            abs_add = abs(delta)
+            self._avg_ticks[key] = (abs_old * avg + abs_add * price) // (abs_old + abs_add)
+            self._positions[key] = qty + delta
+            return
+
+        close_qty = min(abs(delta), abs(qty))
+        if qty > 0:
+            realized += (price - avg) * close_qty
+        else:
+            realized += (avg - price) * close_qty
+
+        previous = qty
+        qty += delta
+        self._realized[key] = realized
+        self._positions[key] = qty
+        if qty == 0:
+            self._avg_ticks[key] = 0
+        elif (previous > 0) != (qty > 0):
+            self._avg_ticks[key] = price
 
     def _is_triggered(self, event: StopEvent) -> bool:
         last = self._last_trade.get(event.symbol)
