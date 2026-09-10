@@ -96,6 +96,7 @@ PYBIND11_MODULE(mercury_engine, m) {
   using mercury::AccountId;
   using mercury::Engine;
   using mercury::FeeSchedule;
+  using mercury::MarkSource;
   using mercury::MassCancelFilter;
   using mercury::Order;
   using mercury::OrderId;
@@ -134,6 +135,11 @@ PYBIND11_MODULE(mercury_engine, m) {
   py::enum_<SelfTradePrevention>(m, "SelfTradePrevention")
       .value("Off", SelfTradePrevention::Off)
       .value("CancelResting", SelfTradePrevention::CancelResting)
+      .export_values();
+
+  py::enum_<MarkSource>(m, "MarkSource")
+      .value("LastTrade", MarkSource::LastTrade)
+      .value("Mid", MarkSource::Mid)
       .export_values();
 
   py::class_<RiskLimits>(m, "RiskLimits")
@@ -269,15 +275,27 @@ PYBIND11_MODULE(mercury_engine, m) {
           py::arg("account"), py::arg("symbol") = 0)
       .def(
           "unrealized_pnl",
-          [](const Engine& engine, std::uint64_t account,
-             std::uint64_t symbol) -> py::object {
-            const auto pnl = engine.unrealized_pnl(AccountId{account}, Symbol{symbol});
+          [](const Engine& engine, std::uint64_t account, std::uint64_t symbol,
+             MarkSource mark) -> py::object {
+            const auto pnl =
+                engine.unrealized_pnl(AccountId{account}, Symbol{symbol}, mark);
             if (!pnl) {
               return py::none();
             }
             return py::int_(*pnl);
           },
-          py::arg("account"), py::arg("symbol") = 0)
+          py::arg("account"), py::arg("symbol") = 0,
+          py::arg("mark") = MarkSource::LastTrade)
+      .def(
+          "mid_price",
+          [](const Engine& engine, std::uint64_t symbol) -> py::object {
+            const auto price = engine.mid_price(Symbol{symbol});
+            if (!price) {
+              return py::none();
+            }
+            return py::int_(price->ticks());
+          },
+          py::arg("symbol") = 0)
       .def(
           "fees_paid",
           [](const Engine& engine, std::uint64_t account) {

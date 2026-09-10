@@ -42,20 +42,37 @@ class Engine:
     def realized_pnl(self, account: int, symbol: int = 0) -> int:
         return self._realized.get((account, symbol), 0)
 
-    def unrealized_pnl(self, account: int, symbol: int = 0) -> Optional[int]:
-        mark = self._last_trade.get(symbol)
-        if mark is None:
+    def unrealized_pnl(
+        self, account: int, symbol: int = 0, mark: Literal["last_trade", "mid"] = "last_trade"
+    ) -> Optional[int]:
+        price = self.mark_price(mark, symbol)
+        if price is None:
             return None
         qty = self.position(account, symbol)
         if qty == 0:
             return 0
-        return (mark - self._avg_ticks.get((account, symbol), 0)) * qty
+        return (price - self._avg_ticks.get((account, symbol), 0)) * qty
 
     def fees_paid(self, account: int) -> int:
         return self._fees_paid.get(account, 0)
 
     def last_trade_price(self, symbol: int = 0) -> Optional[int]:
         return self._last_trade.get(symbol)
+
+    def mid_price(self, symbol: int = 0) -> Optional[int]:
+        book = self.book(symbol)
+        bid = book.best_bid()
+        ask = book.best_ask()
+        if bid is None or ask is None:
+            return None
+        return (bid + ask) // 2
+
+    def mark_price(
+        self, source: Literal["last_trade", "mid"] = "last_trade", symbol: int = 0
+    ) -> Optional[int]:
+        if source == "mid":
+            return self.mid_price(symbol)
+        return self.last_trade_price(symbol)
 
     def pending_stop_count(self, symbol: int = 0) -> int:
         return len(self._stops.get(symbol, []))

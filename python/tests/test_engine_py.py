@@ -117,6 +117,16 @@ class FeesMassCancelTests(unittest.TestCase):
         self.assertEqual(engine.unrealized_pnl(1), 50)
         self.assertEqual(engine.realized_pnl(1), 0)
 
+    def test_pnl_mid_mark(self) -> None:
+        engine = Engine()
+        engine.apply(LimitEvent(id=1, side="buy", price=100, quantity=5, account=1))
+        engine.apply(LimitEvent(id=2, side="sell", price=100, quantity=5, account=2))
+        engine.apply(LimitEvent(id=3, side="buy", price=108, quantity=1, account=3))
+        engine.apply(LimitEvent(id=4, side="sell", price=112, quantity=1, account=4))
+        self.assertEqual(engine.mid_price(), 110)
+        self.assertEqual(engine.unrealized_pnl(1, mark="last_trade"), 0)
+        self.assertEqual(engine.unrealized_pnl(1, mark="mid"), 50)
+
 
 class EngineStopTests(unittest.TestCase):
     def test_stop_fires_on_last_trade(self) -> None:

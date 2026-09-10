@@ -22,6 +22,8 @@ struct SubmitResult {
   std::vector<Trade> trades{};
 };
 
+enum class MarkSource : std::uint8_t { LastTrade, Mid };
+
 struct MassCancelFilter {
   std::optional<AccountId> account;
   std::optional<Symbol> symbol;
@@ -186,18 +188,40 @@ class Engine {
     return inst ? inst->last_trade_price : std::nullopt;
   }
 
+  // Mid = (best_bid + best_ask) / 2 in ticks; nullopt if either side is missing.
+  std::optional<Price> mid_price(Symbol symbol = Symbol{0}) const {
+    const auto bid = book(symbol).best_bid();
+    const auto ask = book(symbol).best_ask();
+    if (!bid || !ask) {
+      return std::nullopt;
+    }
+    return Price{(bid->ticks() + ask->ticks()) / 2};
+  }
+
+  std::optional<Price> mark_price(MarkSource source = MarkSource::LastTrade,
+                                  Symbol symbol = Symbol{0}) const {
+    switch (source) {
+      case MarkSource::LastTrade:
+        return last_trade_price(symbol);
+      case MarkSource::Mid:
+        return mid_price(symbol);
+    }
+    return std::nullopt;
+  }
+
   std::int64_t realized_pnl(AccountId account, Symbol symbol = Symbol{0}) const {
     return positions_.realized_pnl(account, symbol);
   }
 
-  // Marked at last trade; nullopt if the symbol has no last trade yet.
-  std::optional<std::int64_t> unrealized_pnl(AccountId account,
-                                             Symbol symbol = Symbol{0}) const {
-    const auto mark = last_trade_price(symbol);
-    if (!mark) {
+  // Default mark is last trade; Mid needs a two-sided book.
+  std::optional<std::int64_t> unrealized_pnl(
+      AccountId account, Symbol symbol = Symbol{0},
+      MarkSource mark = MarkSource::LastTrade) const {
+    const auto price = mark_price(mark, symbol);
+    if (!price) {
       return std::nullopt;
     }
-    return positions_.unrealized_pnl(account, *mark, symbol);
+    return positions_.unrealized_pnl(account, *price, symbol);
   }
 
   std::size_t pending_stop_count(Symbol symbol = Symbol{0}) const {
