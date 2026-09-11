@@ -195,6 +195,8 @@ inline Event parse_event_line(std::string_view line) {
             detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
         .post_only = detail::optional_bool(line, "post_only"),
         .reduce_only = detail::optional_bool(line, "reduce_only"),
+        .display = Quantity{static_cast<std::uint64_t>(
+            detail::field(line, "display") ? detail::require_int(line, "display") : 0)},
     };
   }
   if (type == "market") {
@@ -274,6 +276,9 @@ inline Event parse_event_line(std::string_view line) {
                                                 : 0)},
               .post_only = detail::optional_bool(line, "post_only"),
               .reduce_only = detail::optional_bool(line, "reduce_only"),
+              .display = Quantity{static_cast<std::uint64_t>(
+                  detail::field(line, "display") ? detail::require_int(line, "display")
+                                                 : 0)},
           },
       };
     }
@@ -339,6 +344,9 @@ inline std::string format_event_line(const Event& event) {
           if (payload.reduce_only) {
             out << ",\"reduce_only\":true";
           }
+          if (!payload.display.is_zero()) {
+            out << ",\"display\":" << payload.display.value();
+          }
           out << '}';
         } else if constexpr (std::is_same_v<T, MarketOrder>) {
           out << "{\"type\":\"market\""
@@ -390,6 +398,9 @@ inline std::string format_event_line(const Event& event) {
                   }
                   if (attempt.reduce_only) {
                     out << ",\"reduce_only\":true";
+                  }
+                  if (!attempt.display.is_zero()) {
+                    out << ",\"display\":" << attempt.display.value();
                   }
                 } else if constexpr (std::is_same_v<A, MarketOrder>) {
                   out << ",\"order_type\":\"market\""

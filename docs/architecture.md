@@ -29,7 +29,8 @@ EventLog / jsonl           Engine replay (+ reject audit no-ops)
   IOC discards remainder, FOK requires a full immediate fill or rejects.
   `post_only` rejects (no fill, no rest) if the limit would take liquidity.
   `reduce_only` rejects unless the order shrinks an existing position (no flip).
-- Market: match available liquidity, discard unfilled qty.
+  Iceberg: optional `display` peak; book snapshot shows peak only, matching
+  still consumes full remaining quantity.- Market: match available liquidity, discard unfilled qty.
 - Stop: armed until last trade crosses `stop_price` (buy `>=`, sell `<=`),
   then becomes limit (`limit_price`) or market; same id; cancel removes pending.
 - Cancel: remove resting order / pending stop by `OrderId` (routed by symbol).

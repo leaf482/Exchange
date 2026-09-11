@@ -16,6 +16,13 @@ class Order:
     symbol: int = 0
     post_only: bool = False
     reduce_only: bool = False
+    display: int = 0  # 0 = fully visible; snapshot uses min(qty, display)
+
+
+def visible_quantity(order: Order) -> int:
+    if order.display <= 0:
+        return order.quantity
+    return min(order.quantity, order.display)
 
 
 @dataclass(frozen=True)
@@ -128,6 +135,8 @@ class OrderBook:
             tif="gtc",
             symbol=original.symbol,
             post_only=original.post_only,
+            reduce_only=original.reduce_only,
+            display=original.display,
         )
         self.cancel(order_id)
         if quantity == 0:
@@ -164,7 +173,7 @@ class OrderBook:
         bids = tuple(
             BookLevel(
                 price=price,
-                quantity=sum(order.quantity for order in self._bids[price]),
+                quantity=sum(visible_quantity(order) for order in self._bids[price]),
                 order_count=len(self._bids[price]),
             )
             for price in sorted(self._bids, reverse=True)[:max_levels]
@@ -172,12 +181,26 @@ class OrderBook:
         asks = tuple(
             BookLevel(
                 price=price,
-                quantity=sum(order.quantity for order in self._asks[price]),
+                quantity=sum(visible_quantity(order) for order in self._asks[price]),
                 order_count=len(self._asks[price]),
             )
             for price in sorted(self._asks)[:max_levels]
         )
         return BookSnapshot(bids=bids, asks=asks)
+
+    def estimate_buy_notional(self, quantity: int, is_market: bool, limit: int = 0) -> int:
+        need = 0
+        remaining = quantity
+        for price in sorted(self._asks):
+            if remaining <= 0:
+                break
+            if not is_market and price > limit:
+                break
+            level_qty = sum(order.quantity for order in self._asks[price])
+            take = min(remaining, level_qty)
+            need += price * take
+            remaining -= take
+        return need
 
     def _would_take(self, order: Order) -> bool:
         if order.side == "buy":

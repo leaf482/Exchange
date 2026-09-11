@@ -16,6 +16,7 @@ class LimitEvent:
     symbol: int = 0
     post_only: bool = False
     reduce_only: bool = False
+    display: int = 0
     type: Literal["limit"] = "limit"
 
 
@@ -90,6 +91,7 @@ class RejectEvent:
     symbol: int = 0
     post_only: bool = False
     reduce_only: bool = False
+    display: int = 0
     type: Literal["reject"] = "reject"
 
 
@@ -107,6 +109,8 @@ def event_to_dict(event: Event) -> dict:
             del data["post_only"]
         if not event.reduce_only:
             del data["reduce_only"]
+        if not event.display:
+            del data["display"]
     if isinstance(event, MarketEvent) and not event.reduce_only:
         del data["reduce_only"]
     if isinstance(event, RejectEvent):
@@ -115,6 +119,8 @@ def event_to_dict(event: Event) -> dict:
             data.pop("post_only", None)
         if not event.reduce_only:
             data.pop("reduce_only", None)
+        if event.order_type != "limit" or not event.display:
+            data.pop("display", None)
         if event.order_type != "limit":
             data.pop("tif", None)
         if event.order_type == "market":
@@ -146,6 +152,7 @@ def event_from_dict(data: dict) -> Event:
             symbol=data.get("symbol", 0),
             post_only=bool(data.get("post_only", False)),
             reduce_only=bool(data.get("reduce_only", False)),
+            display=int(data.get("display", 0)),
         )
     if kind == "market":
         return MarketEvent(
@@ -196,6 +203,7 @@ def event_from_dict(data: dict) -> Event:
             symbol=data.get("symbol", 0),
             post_only=bool(data.get("post_only", False)),
             reduce_only=bool(data.get("reduce_only", False)),
+            display=int(data.get("display", 0)),
         )
     raise ValueError(f"unknown event type: {kind}")
 

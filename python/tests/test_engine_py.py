@@ -188,6 +188,19 @@ class FeesMassCancelTests(unittest.TestCase):
         self.assertEqual(engine.book().best_ask(), 100)
         self.assertEqual(event_from_dict(event_to_dict(reject)), reject)
 
+    def test_iceberg_snapshot_and_match(self) -> None:
+        from mercury_sim.book import OrderBook, Order
+
+        book = OrderBook()
+        book.add_limit(
+            Order(id=1, side="sell", price=100, quantity=10, display=2)
+        )
+        snap = book.snapshot(1)
+        self.assertEqual(snap.asks[0].quantity, 2)
+        trades = book.add_limit(Order(id=2, side="buy", price=100, quantity=7))
+        self.assertEqual(sum(t.quantity for t in trades), 7)
+        self.assertEqual(book.snapshot(1).asks[0].quantity, 2)
+
 
 class EngineStopTests(unittest.TestCase):
     def test_stop_fires_on_last_trade(self) -> None:

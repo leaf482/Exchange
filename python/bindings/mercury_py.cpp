@@ -169,7 +169,8 @@ PYBIND11_MODULE(mercury_engine, m) {
           "add_limit",
           [](Engine& engine, std::uint64_t id, Side side, std::int64_t price,
              std::uint64_t quantity, std::uint64_t account, TimeInForce tif,
-             std::uint64_t symbol, bool post_only, bool reduce_only) {
+             std::uint64_t symbol, bool post_only, bool reduce_only,
+             std::uint64_t display) {
             return submit_to_dict(engine.add(Order{
                 .id = OrderId{id},
                 .side = side,
@@ -180,12 +181,13 @@ PYBIND11_MODULE(mercury_engine, m) {
                 .symbol = Symbol{symbol},
                 .post_only = post_only,
                 .reduce_only = reduce_only,
+                .display = Quantity{display},
             }));
           },
           py::arg("id"), py::arg("side"), py::arg("price"), py::arg("quantity"),
           py::arg("account") = 0, py::arg("tif") = TimeInForce::Gtc,
           py::arg("symbol") = 0, py::arg("post_only") = false,
-          py::arg("reduce_only") = false)
+          py::arg("reduce_only") = false, py::arg("display") = 0)
       .def(
           "add_market",
           [](Engine& engine, std::uint64_t id, Side side, std::uint64_t quantity,

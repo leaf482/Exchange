@@ -32,6 +32,8 @@ def apply_event(book: OrderBook, event: Event) -> list[Trade]:
                 tif=event.tif,
                 symbol=event.symbol,
                 post_only=event.post_only,
+                reduce_only=getattr(event, "reduce_only", False),
+                display=getattr(event, "display", 0),
             )
         )
     if isinstance(event, MarketEvent):

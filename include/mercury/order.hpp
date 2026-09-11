@@ -2,6 +2,7 @@
 
 #include "mercury/types.hpp"
 
+#include <algorithm>
 #include <optional>
 
 namespace mercury {
@@ -22,9 +23,19 @@ struct Order {
   Symbol symbol{0};
   bool post_only{false};   // reject if the order would take liquidity
   bool reduce_only{false};  // reject unless it shrinks existing position (no flip)
+  // Iceberg peak: 0 = fully visible. Snapshot shows min(quantity, display);
+  // matching still uses full quantity.
+  Quantity display{0};
 
   constexpr bool operator==(const Order&) const = default;
 };
+
+inline Quantity visible_quantity(const Order& order) {
+  if (order.display.is_zero()) {
+    return order.quantity;
+  }
+  return std::min(order.quantity, order.display);
+}
 
 struct MarketOrder {
   OrderId id;

@@ -134,6 +134,7 @@ class Engine:
             symbol=event.symbol,
             post_only=event.post_only,
             reduce_only=event.reduce_only,
+            display=event.display,
         )
         original = event.quantity
         trades = self.book(event.symbol).add_limit(order)
@@ -158,15 +159,9 @@ class Engine:
         ):
             return []
         if self._enforce_cash and event.side == "buy":
-            need = 0
-            remaining = event.quantity
-            snap = self.book(event.symbol).snapshot(256)
-            for level in snap.asks:
-                if remaining <= 0:
-                    break
-                take = min(remaining, level.quantity)
-                need += level.price * take
-                remaining -= take
+            need = self.book(event.symbol).estimate_buy_notional(
+                event.quantity, is_market=True
+            )
             if self.available_cash(event.account) < need:
                 return []
         order = Order(

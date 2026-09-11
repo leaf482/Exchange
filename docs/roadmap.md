@@ -41,10 +41,11 @@ correctness.
 - Monotonic `TradeId` stamped by Engine (OrderBook leaves 0)
 - Account cash ledger (tick×qty); optional buy cash enforcement + resting reserve
 - Reject audit events (JSONL `reject`; replay no-op)
+- Iceberg limits (`display` peak; snapshot hides remainder; matching uses full qty)
 
 ## Next (small steps)
 
-1. Optional product extras (iceberg, GTD expire, sell/short margin)
+1. Optional product extras (GTD expire, sell/short margin)
 2. Shard-by-symbol matching only after benches show a hotspot
 3. Optional networking / storage / UI outside the matching core
 

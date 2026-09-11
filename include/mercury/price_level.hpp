@@ -67,6 +67,15 @@ class PriceLevel {
     return Quantity{total};
   }
 
+  // Book depth: iceberg peaks only (hidden size excluded).
+  Quantity visible_quantity() const {
+    std::uint64_t total = 0;
+    for (const Order& order : orders_) {
+      total += mercury::visible_quantity(order).value();
+    }
+    return Quantity{total};
+  }
+
   // Quantity that can fill `taker` under the given STP policy.
   Quantity matchable_quantity(AccountId taker_account,
                               SelfTradePrevention stp) const {

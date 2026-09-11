@@ -152,6 +152,8 @@ class OrderBook {
         .tif = TimeInForce::Gtc,
         .symbol = original->symbol,
         .post_only = original->post_only,
+        .reduce_only = original->reduce_only,
+        .display = original->display,
     });
   }
 
@@ -195,7 +197,7 @@ class OrderBook {
       }
       snap.bids.push_back(BookLevel{
           .price = price,
-          .quantity = level.total_quantity(),
+          .quantity = level.visible_quantity(),
           .order_count = level.size(),
       });
     }
@@ -205,11 +207,30 @@ class OrderBook {
       }
       snap.asks.push_back(BookLevel{
           .price = price,
-          .quantity = level.total_quantity(),
+          .quantity = level.visible_quantity(),
           .order_count = level.size(),
       });
     }
     return snap;
+  }
+
+  // Full (incl. iceberg hidden) ask walk for cash checks.
+  std::int64_t estimate_buy_notional(Quantity quantity, bool is_market,
+                                     Price limit = Price{0}) const {
+    std::int64_t need = 0;
+    std::uint64_t remaining = quantity.value();
+    for (const auto& [price, level] : asks_) {
+      if (remaining == 0) {
+        break;
+      }
+      if (!is_market && price > limit) {
+        break;
+      }
+      const std::uint64_t take = std::min(remaining, level.total_quantity().value());
+      need += price.ticks() * static_cast<std::int64_t>(take);
+      remaining -= take;
+    }
+    return need;
   }
 
  private:

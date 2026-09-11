@@ -150,6 +150,7 @@ class Engine {
         .account = open.account,
         .tif = TimeInForce::Gtc,
         .symbol = symbol,
+        .display = open.display,
     });
   }
 
@@ -264,6 +265,7 @@ class Engine {
     Side side;
     Quantity remaining;
     Price price{0};  // set for book rests (cash reservation); 0 for pending stops
+    Quantity display{0};
   };
 
   struct Instrument {
@@ -292,8 +294,10 @@ class Engine {
   }
 
   void add_open(OrderId id, Symbol symbol, AccountId account, Side side,
-                Quantity quantity, Price price = Price{0}) {
-    open_orders_.insert_or_assign(id, OpenOrder{symbol, account, side, quantity, price});
+                Quantity quantity, Price price = Price{0},
+                Quantity display = Quantity{0}) {
+    open_orders_.insert_or_assign(
+        id, OpenOrder{symbol, account, side, quantity, price, display});
     WorkingExposure& exposure = working_[{account, symbol}];
     if (side == Side::Buy) {
       exposure.buy += quantity.value();
@@ -494,6 +498,7 @@ class Engine {
     const Quantity original = order.quantity;
     const TimeInForce tif = order.tif;
     const Price order_price = order.price;
+    const Quantity display = order.display;
     auto trades = instrument(symbol).book.add(std::move(order));
     clear_stp_cancels(symbol);
 
@@ -505,7 +510,7 @@ class Engine {
 
     const Quantity rested{original.value() - filled.value()};
     if (tif == TimeInForce::Gtc && !rested.is_zero()) {
-      add_open(id, symbol, account, taker_side, rested, order_price);
+      add_open(id, symbol, account, taker_side, rested, order_price, display);
     }
 
     apply_trades(symbol, taker_side, trades);
@@ -568,15 +573,7 @@ class Engine {
     if (!is_market) {
       need = limit.ticks() * static_cast<std::int64_t>(quantity.value());
     } else {
-      std::uint64_t remaining = quantity.value();
-      for (const BookLevel& level : book(symbol).snapshot(256).asks) {
-        if (remaining == 0) {
-          break;
-        }
-        const std::uint64_t take = std::min(remaining, level.quantity.value());
-        need += level.price.ticks() * static_cast<std::int64_t>(take);
-        remaining -= take;
-      }
+      need = book(symbol).estimate_buy_notional(quantity, true);
     }
 
     if (balances_.available(account) < need) {
