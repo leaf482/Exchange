@@ -62,8 +62,9 @@ class StopEvent:
     quantity: int
     account: int = 0
     limit_price: Optional[int] = None
-    tif: Literal["gtc", "ioc", "fok"] = "gtc"
+    tif: Literal["gtc", "ioc", "fok", "gtd"] = "gtc"
     symbol: int = 0
+    expire_at: int = 0
     type: Literal["stop"] = "stop"
 
 
@@ -120,6 +121,8 @@ def event_to_dict(event: Event) -> dict:
     data = asdict(event)
     if isinstance(event, StopEvent) and event.limit_price is None:
         del data["limit_price"]
+    if isinstance(event, StopEvent) and not event.expire_at:
+        data.pop("expire_at", None)
     if isinstance(event, LimitEvent):
         if not event.post_only:
             del data["post_only"]
@@ -139,7 +142,7 @@ def event_to_dict(event: Event) -> dict:
             data.pop("reduce_only", None)
         if event.order_type != "limit" or not event.display:
             data.pop("display", None)
-        if event.order_type != "limit" or not event.expire_at:
+        if event.order_type not in ("limit", "stop") or not event.expire_at:
             data.pop("expire_at", None)
         if event.order_type != "limit":
             data.pop("tif", None)
@@ -208,6 +211,7 @@ def event_from_dict(data: dict) -> Event:
             limit_price=data.get("limit_price"),
             tif=data.get("tif", "gtc"),
             symbol=data.get("symbol", 0),
+            expire_at=int(data.get("expire_at", 0)),
         )
     if kind == "reject":
         return RejectEvent(

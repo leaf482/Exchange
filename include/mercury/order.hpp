@@ -55,6 +55,7 @@ struct MarketOrder {
 };
 
 // Armed until last trade reaches stop_price, then becomes limit or market.
+// Optional expire_at cancels the pending stop when the Engine clock reaches it.
 struct StopOrder {
   OrderId id;
   Side side;
@@ -64,6 +65,7 @@ struct StopOrder {
   std::optional<Price> limit_price;  // nullopt => market on trigger
   TimeInForce tif{TimeInForce::Gtc};  // used when limit_price is set
   Symbol symbol{0};
+  std::uint64_t expire_at{0};  // 0 = no pending expiry
 
   constexpr bool operator==(const StopOrder&) const = default;
 };

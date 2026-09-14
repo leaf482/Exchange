@@ -290,10 +290,14 @@ class Engine:
         return trades
 
     def add_stop(self, event: StopEvent) -> list[Trade]:
+        if event.expire_at != 0 and event.expire_at <= self._now:
+            return []
         if self._is_triggered(event):
             return self._fire_stop(event)
         self._stops.setdefault(event.symbol, []).append(_PendingStop(event=event))
         self._stop_index[event.id] = event.symbol
+        if event.expire_at:
+            self._expire_at[event.id] = event.expire_at
         return []
 
     def cancel(self, order_id: int) -> bool:
@@ -301,6 +305,7 @@ class Engine:
         if symbol is not None:
             pending = self._stops.get(symbol, [])
             self._stops[symbol] = [item for item in pending if item.event.id != order_id]
+            self._expire_at.pop(order_id, None)
             return True
 
         self._release_cash_rest(order_id)
@@ -565,6 +570,7 @@ class Engine:
                 account=event.account,
                 tif=event.tif,
                 symbol=event.symbol,
+                expire_at=event.expire_at if event.tif == "gtd" else 0,
             )
         )
 
@@ -580,6 +586,7 @@ class Engine:
                 stop = pending.pop(index).event
                 self._stops[symbol] = pending
                 self._stop_index.pop(stop.id, None)
+                self._expire_at.pop(stop.id, None)
                 trades.extend(self._fire_stop(stop))
                 progressed = True
                 break

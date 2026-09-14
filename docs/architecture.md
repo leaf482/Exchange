@@ -29,6 +29,7 @@ EventLog / jsonl           Engine replay (+ reject no-ops, GTD `time` ticks)
 - Limit: match opposite side while prices cross; GTC rests remainder,
   IOC discards remainder, FOK requires a full immediate fill or rejects.
   GTD rests like GTC until `expire_at` on the Engine clock (`time` events).
+  Pending stops may also set `expire_at` and are cancelled on the same clock.
   `post_only` rejects (no fill, no rest) if the limit would take liquidity.
   `reduce_only` rejects unless the order shrinks an existing position (no flip).
   Iceberg: optional `display` peak; book snapshot shows peak only, matching

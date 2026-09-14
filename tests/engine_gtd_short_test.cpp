@@ -97,6 +97,66 @@ TEST(Jsonl, GtdAndTimeRoundTrip) {
   EXPECT_EQ(std::get<TimeAdvance>(tick_parsed), tick);
 }
 
+TEST(EngineGtd, PendingStopExpires) {
+  Engine engine;
+  ASSERT_EQ(engine
+                .add_stop(mercury::StopOrder{.id = OrderId{1},
+                                             .side = Side::Buy,
+                                             .stop_price = Price{100},
+                                             .quantity = Quantity{3},
+                                             .account = AccountId{1},
+                                             .limit_price = std::nullopt,
+                                             .tif = TimeInForce::Gtc,
+                                             .symbol = mercury::Symbol{0},
+                                             .expire_at = 5})
+                .decision,
+            RiskDecision::Accept);
+  ASSERT_EQ(engine
+                .add_stop(mercury::StopOrder{.id = OrderId{2},
+                                             .side = Side::Buy,
+                                             .stop_price = Price{100},
+                                             .quantity = Quantity{1},
+                                             .account = AccountId{1},
+                                             .limit_price = std::nullopt,
+                                             .tif = TimeInForce::Gtc,
+                                             .symbol = mercury::Symbol{0},
+                                             .expire_at = 0})
+                .decision,
+            RiskDecision::Accept);
+  EXPECT_EQ(engine.pending_stop_count(), 2u);
+
+  EXPECT_EQ(engine.advance_time(5), 1u);
+  EXPECT_EQ(engine.pending_stop_count(), 1u);
+
+  EXPECT_EQ(engine
+                .add_stop(mercury::StopOrder{.id = OrderId{3},
+                                             .side = Side::Buy,
+                                             .stop_price = Price{100},
+                                             .quantity = Quantity{1},
+                                             .account = AccountId{1},
+                                             .limit_price = std::nullopt,
+                                             .tif = TimeInForce::Gtc,
+                                             .symbol = mercury::Symbol{0},
+                                             .expire_at = 5})
+                .decision,
+            RiskDecision::InvalidExpire);
+}
+
+TEST(Jsonl, StopExpireRoundTrip) {
+  const mercury::StopOrder stop{.id = OrderId{4},
+                                .side = Side::Sell,
+                                .stop_price = Price{90},
+                                .quantity = Quantity{2},
+                                .account = AccountId{1},
+                                .limit_price = std::nullopt,
+                                .tif = TimeInForce::Gtc,
+                                .symbol = mercury::Symbol{0},
+                                .expire_at = 12};
+  const auto parsed = parse_event_line(format_event_line(stop));
+  ASSERT_TRUE(std::holds_alternative<mercury::StopOrder>(parsed));
+  EXPECT_EQ(std::get<mercury::StopOrder>(parsed), stop);
+}
+
 TEST(EngineShortMargin, RejectsUncoveredSell) {
   Engine engine;
   engine.set_enforce_cash(true);

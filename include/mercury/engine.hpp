@@ -87,7 +87,7 @@ class Engine {
   std::uint64_t now() const { return now_; }
 
   // Advance discrete clock to `time` (no-op if time <= now). Cancels resting
-  // GTD orders with expire_at <= now. Returns cancelled count.
+  // orders / pending stops with expire_at <= now. Returns cancelled count.
   std::size_t advance_time(std::uint64_t time) {
     if (time <= now_) {
       return 0;
@@ -129,6 +129,7 @@ class Engine {
   }
 
   // Arms a stop. Triggers when last trade crosses stop_price (buy: >=, sell: <=).
+  // Non-zero expire_at cancels the pending stop when the clock reaches it.
   SubmitResult add_stop(StopOrder stop) {
     const AccountId account = stop.account;
     const Symbol symbol = stop.symbol;
@@ -139,12 +140,16 @@ class Engine {
     if (decision != RiskDecision::Accept) {
       return SubmitResult{.decision = decision};
     }
+    if (stop.expire_at != 0 && stop.expire_at <= now_) {
+      return SubmitResult{.decision = RiskDecision::InvalidExpire};
+    }
 
     if (is_triggered(stop)) {
       return fire_stop(std::move(stop));
     }
 
-    add_open(stop.id, symbol, account, stop.side, stop.quantity);
+    add_open(stop.id, symbol, account, stop.side, stop.quantity, Price{0},
+             Quantity{0}, stop.expire_at);
     instrument(symbol).stops.push_back(std::move(stop));
     return SubmitResult{.decision = RiskDecision::Accept};
   }
@@ -505,6 +510,7 @@ class Engine {
           .account = stop.account,
           .tif = stop.tif,
           .symbol = symbol,
+          .expire_at = stop.tif == TimeInForce::Gtd ? stop.expire_at : 0,
       });
     } else {
       result = submit_market(MarketOrder{
@@ -547,6 +553,7 @@ class Engine {
               .account = stop.account,
               .tif = stop.tif,
               .symbol = symbol,
+              .expire_at = stop.tif == TimeInForce::Gtd ? stop.expire_at : 0,
           });
         } else {
           fired = submit_market(MarketOrder{

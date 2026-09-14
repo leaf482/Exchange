@@ -42,12 +42,13 @@ anything outside the matching path (net/UI) — not required for correctness.
 - Reject audit events (JSONL `reject`; replay no-op)
 - Iceberg limits (`display` peak; snapshot hides remainder; matching uses full qty)
 - GTD limits (`tif=gtd` + `expire_at`); JSONL `time` advances Engine clock and expires
+- Pending stops may set `expire_at` and expire on the same clock
 - Short margin under `enforce_cash`: uncovered sells need/reserve cash like buys
 - Account report (cash / reserved / positions / mark PnL / equity)
 
 ## Next (small steps)
 
-1. Optional polish (stop GTD, iceberg tip-refill) only if needed for demos
+1. Optional polish (iceberg tip-refill) only if needed for demos
 2. Shard-by-symbol matching only after benches show a hotspot
 3. Optional networking / storage / UI outside the matching core
 

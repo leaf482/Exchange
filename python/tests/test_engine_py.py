@@ -215,6 +215,18 @@ class FeesMassCancelTests(unittest.TestCase):
         self.assertIsNone(engine.book().best_bid())
         self.assertEqual(engine.now(), 5)
 
+    def test_pending_stop_expires(self) -> None:
+        from mercury_sim.events import StopEvent, TimeEvent
+
+        engine = Engine()
+        engine.apply(
+            StopEvent(id=1, side="buy", stop_price=100, quantity=3, account=1, expire_at=5)
+        )
+        engine.apply(StopEvent(id=2, side="buy", stop_price=100, quantity=1, account=1))
+        self.assertEqual(engine.pending_stop_count(), 2)
+        engine.apply(TimeEvent(time=5))
+        self.assertEqual(engine.pending_stop_count(), 1)
+
     def test_short_margin_reserves(self) -> None:
         engine = Engine(enforce_cash=True)
         engine.set_cash(1, 500)

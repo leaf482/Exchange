@@ -261,6 +261,9 @@ inline Event parse_event_line(std::string_view line) {
         .tif = detail::optional_tif(line),
         .symbol = Symbol{static_cast<std::uint64_t>(
             detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
+        .expire_at = static_cast<std::uint64_t>(
+            detail::field(line, "expire_at") ? detail::require_int(line, "expire_at")
+                                             : 0),
     };
     if (detail::field(line, "limit_price")) {
       stop.limit_price = Price{detail::require_int(line, "limit_price")};
@@ -329,6 +332,9 @@ inline Event parse_event_line(std::string_view line) {
           .tif = detail::optional_tif(line),
           .symbol = Symbol{static_cast<std::uint64_t>(
               detail::field(line, "symbol") ? detail::require_int(line, "symbol") : 0)},
+          .expire_at = static_cast<std::uint64_t>(
+              detail::field(line, "expire_at") ? detail::require_int(line, "expire_at")
+                                               : 0),
       };
       if (detail::field(line, "limit_price")) {
         stop.limit_price = Price{detail::require_int(line, "limit_price")};
@@ -451,6 +457,9 @@ inline std::string format_event_line(const Event& event) {
                   }
                   out << ",\"tif\":\"" << detail::format_tif(attempt.tif) << '"'
                       << ",\"symbol\":" << attempt.symbol.value();
+                  if (attempt.expire_at != 0) {
+                    out << ",\"expire_at\":" << attempt.expire_at;
+                  }
                 }
               },
               payload.attempt);
@@ -468,7 +477,11 @@ inline std::string format_event_line(const Event& event) {
             out << ",\"limit_price\":" << payload.limit_price->ticks();
           }
           out << ",\"tif\":\"" << detail::format_tif(payload.tif) << '"'
-              << ",\"symbol\":" << payload.symbol.value() << '}';
+              << ",\"symbol\":" << payload.symbol.value();
+          if (payload.expire_at != 0) {
+            out << ",\"expire_at\":" << payload.expire_at;
+          }
+          out << '}';
         }
         return out.str();
       },

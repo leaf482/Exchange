@@ -214,7 +214,7 @@ PYBIND11_MODULE(mercury_engine, m) {
           [](Engine& engine, std::uint64_t id, Side side, std::int64_t stop_price,
              std::uint64_t quantity, std::uint64_t account,
              std::optional<std::int64_t> limit_price, TimeInForce tif,
-             std::uint64_t symbol) {
+             std::uint64_t symbol, std::uint64_t expire_at) {
             StopOrder stop{
                 .id = OrderId{id},
                 .side = side,
@@ -224,6 +224,7 @@ PYBIND11_MODULE(mercury_engine, m) {
                 .limit_price = std::nullopt,
                 .tif = tif,
                 .symbol = Symbol{symbol},
+                .expire_at = expire_at,
             };
             if (limit_price) {
               stop.limit_price = Price{*limit_price};
@@ -233,7 +234,7 @@ PYBIND11_MODULE(mercury_engine, m) {
           py::arg("id"), py::arg("side"), py::arg("stop_price"),
           py::arg("quantity"), py::arg("account") = 0,
           py::arg("limit_price") = py::none(), py::arg("tif") = TimeInForce::Gtc,
-          py::arg("symbol") = 0)
+          py::arg("symbol") = 0, py::arg("expire_at") = 0)
       .def("cancel",
            [](Engine& engine, std::uint64_t id) {
              return engine.cancel(OrderId{id});
