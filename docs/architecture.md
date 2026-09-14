@@ -17,8 +17,9 @@ Engine                     risk -> per-Symbol OrderBook -> positions + working
         +-- OrderBook      bids/asks of PriceLevel (price-time priority)
         |                    snapshot(depth) -> BookSnapshot
         +-- Positions      signed qty / realized + unrealized (last-trade or mid mark)
-        +-- Balances       cash (tick×qty); optional enforce on buys
+        +-- Balances       cash (tick×qty); optional enforce on buys/shorts
         +-- RiskLimits     max order size, max abs position (per symbol)
+        |                  account_report -> cash + inventory mark equity
         |
 EventLog / jsonl           Engine replay (+ reject no-ops, GTD `time` ticks)
 ```

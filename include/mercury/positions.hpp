@@ -7,6 +7,7 @@
 #include <cstdlib>
 #include <map>
 #include <utility>
+#include <vector>
 
 namespace mercury {
 
@@ -65,6 +66,38 @@ class Positions {
       return 0;
     }
     return (mark.ticks() - it->second.avg_ticks) * it->second.qty;
+  }
+
+  std::int64_t avg_ticks(AccountId account, Symbol symbol = Symbol{0}) const {
+    const auto it = accounts_.find({account, symbol});
+    return it == accounts_.end() ? 0 : it->second.avg_ticks;
+  }
+
+  struct Entry {
+    Symbol symbol;
+    std::int64_t quantity = 0;
+    std::int64_t avg_ticks = 0;
+    std::int64_t realized_pnl = 0;
+  };
+
+  // Non-flat or realized-nonzero rows for one account.
+  std::vector<Entry> for_account(AccountId account) const {
+    std::vector<Entry> out;
+    for (const auto& [key, state] : accounts_) {
+      if (key.first != account) {
+        continue;
+      }
+      if (state.qty == 0 && state.realized == 0) {
+        continue;
+      }
+      out.push_back(Entry{
+          .symbol = key.second,
+          .quantity = state.qty,
+          .avg_ticks = state.avg_ticks,
+          .realized_pnl = state.realized,
+      });
+    }
+    return out;
   }
 
  private:

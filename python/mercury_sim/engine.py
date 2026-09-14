@@ -104,6 +104,64 @@ class Engine:
             return 0
         return (price - self._avg_ticks.get((account, symbol), 0)) * qty
 
+    def account_report(
+        self, account: int, mark: Literal["last_trade", "mid"] = "last_trade"
+    ) -> dict:
+        positions: list[dict] = []
+        realized_total = 0
+        unrealized_total = 0
+        inventory_mark = 0
+        missing_mark = False
+        symbols = {
+            symbol
+            for (acc, symbol), qty in self._positions.items()
+            if acc == account and (qty != 0 or self._realized.get((acc, symbol), 0) != 0)
+        }
+        symbols |= {
+            symbol
+            for (acc, symbol), realized in self._realized.items()
+            if acc == account and realized != 0
+        }
+        for symbol in sorted(symbols):
+            qty = self.position(account, symbol)
+            realized = self.realized_pnl(account, symbol)
+            if qty == 0 and realized == 0:
+                continue
+            row: dict = {
+                "symbol": symbol,
+                "quantity": qty,
+                "avg_ticks": self._avg_ticks.get((account, symbol), 0),
+                "realized_pnl": realized,
+                "mark_ticks": None,
+                "unrealized_pnl": None,
+            }
+            realized_total += realized
+            if qty != 0:
+                price = self.mark_price(mark, symbol)
+                if price is None:
+                    missing_mark = True
+                else:
+                    row["mark_ticks"] = price
+                    row["unrealized_pnl"] = (price - row["avg_ticks"]) * qty
+                    unrealized_total += row["unrealized_pnl"]
+                    inventory_mark += qty * price
+            positions.append(row)
+
+        cash = self.cash(account)
+        reserved = self.reserved_cash(account)
+        return {
+            "account": account,
+            "cash": cash,
+            "reserved": reserved,
+            "available": cash - reserved,
+            "fees_paid": self.fees_paid(account),
+            "positions": positions,
+            "realized_pnl": realized_total,
+            "unrealized_pnl": None if missing_mark else unrealized_total,
+            "inventory_mark": inventory_mark,
+            "equity": cash + inventory_mark,
+        }
+
     def fees_paid(self, account: int) -> int:
         return self._fees_paid.get(account, 0)
 

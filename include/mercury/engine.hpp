@@ -34,6 +34,29 @@ struct MassCancelFilter {
   constexpr bool operator==(const MassCancelFilter&) const = default;
 };
 
+struct PositionReport {
+  Symbol symbol{0};
+  std::int64_t quantity{0};
+  std::int64_t avg_ticks{0};
+  std::int64_t realized_pnl{0};
+  std::optional<std::int64_t> mark_ticks;
+  std::optional<std::int64_t> unrealized_pnl;
+};
+
+// Portfolio view for one account (tick * quantity cash units).
+struct AccountReport {
+  AccountId account{0};
+  std::int64_t cash{0};
+  std::int64_t reserved{0};
+  std::int64_t available{0};
+  std::int64_t fees_paid{0};
+  std::vector<PositionReport> positions;
+  std::int64_t realized_pnl{0};
+  std::optional<std::int64_t> unrealized_pnl;  // nullopt if any open row lacks mark
+  std::int64_t inventory_mark{0};              // sum(qty * mark) where mark known
+  std::int64_t equity{0};                      // cash + inventory_mark
+};
+
 // Per-symbol OrderBooks + shared Positions, with risk checks and stop orders.
 class Engine {
  public:
@@ -270,6 +293,50 @@ class Engine {
       return std::nullopt;
     }
     return positions_.unrealized_pnl(account, *price, symbol);
+  }
+
+  AccountReport account_report(AccountId account,
+                               MarkSource mark = MarkSource::LastTrade) const {
+    AccountReport report;
+    report.account = account;
+    report.cash = balances_.cash(account);
+    report.reserved = balances_.reserved(account);
+    report.available = balances_.available(account);
+    report.fees_paid = fees_paid(account);
+
+    bool missing_mark = false;
+    std::int64_t unrealized_sum = 0;
+    for (const auto& entry : positions_.for_account(account)) {
+      PositionReport row{
+          .symbol = entry.symbol,
+          .quantity = entry.quantity,
+          .avg_ticks = entry.avg_ticks,
+          .realized_pnl = entry.realized_pnl,
+          .mark_ticks = std::nullopt,
+          .unrealized_pnl = std::nullopt,
+      };
+      report.realized_pnl += entry.realized_pnl;
+
+      if (entry.quantity != 0) {
+        const auto price = mark_price(mark, entry.symbol);
+        if (price) {
+          row.mark_ticks = price->ticks();
+          row.unrealized_pnl =
+              positions_.unrealized_pnl(account, *price, entry.symbol);
+          unrealized_sum += *row.unrealized_pnl;
+          report.inventory_mark += entry.quantity * price->ticks();
+        } else {
+          missing_mark = true;
+        }
+      }
+      report.positions.push_back(row);
+    }
+
+    if (!missing_mark) {
+      report.unrealized_pnl = unrealized_sum;
+    }
+    report.equity = report.cash + report.inventory_mark;
+    return report;
   }
 
   std::size_t pending_stop_count(Symbol symbol = Symbol{0}) const {

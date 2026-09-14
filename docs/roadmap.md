@@ -5,14 +5,14 @@ Incremental work only. Correctness and measurement before concurrency.
 ## Progress (portfolio core)
 
 Matching / risk / accounting for a single-threaded exchange sim is largely in
-place (~90% of the intended core). Remaining work is optional polish and
+place (~95% of the intended core). Remaining work is optional polish and
 anything outside the matching path (net/UI) — not required for correctness.
 
 | Area | Status |
 | --- | --- |
 | Matching (limit/market/cancel, TIF+GTD, stop, replace, mass cancel, iceberg) | Done |
 | Risk (size/position, STP, post-only, reduce-only, cash+buy/short reserve) | Done |
-| Positions / PnL / fees / TradeId | Done |
+| Positions / PnL / fees / TradeId / account report | Done |
 | Deterministic JSONL + Engine replay + Python parity | Done |
 | Latency benches (single-thread) | Done |
 | Networking / UI / multi-thread shards | Not started (deferred) |
@@ -43,11 +43,13 @@ anything outside the matching path (net/UI) — not required for correctness.
 - Iceberg limits (`display` peak; snapshot hides remainder; matching uses full qty)
 - GTD limits (`tif=gtd` + `expire_at`); JSONL `time` advances Engine clock and expires
 - Short margin under `enforce_cash`: uncovered sells need/reserve cash like buys
+- Account report (cash / reserved / positions / mark PnL / equity)
 
 ## Next (small steps)
 
-1. Shard-by-symbol matching only after benches show a hotspot
-2. Optional networking / storage / UI outside the matching core
+1. Optional polish (stop GTD, iceberg tip-refill) only if needed for demos
+2. Shard-by-symbol matching only after benches show a hotspot
+3. Optional networking / storage / UI outside the matching core
 
 ## Later
 

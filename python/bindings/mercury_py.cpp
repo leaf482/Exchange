@@ -96,6 +96,7 @@ mercury::Engine make_engine(const mercury::RiskLimits& limits,
 
 PYBIND11_MODULE(mercury_engine, m) {
   using mercury::AccountId;
+  using mercury::AccountReport;
   using mercury::Engine;
   using mercury::FeeSchedule;
   using mercury::MarkSource;
@@ -296,6 +297,41 @@ PYBIND11_MODULE(mercury_engine, m) {
           },
           py::arg("account"), py::arg("symbol") = 0,
           py::arg("mark") = MarkSource::LastTrade)
+      .def(
+          "account_report",
+          [](const Engine& engine, std::uint64_t account, MarkSource mark) {
+            const AccountReport report =
+                engine.account_report(AccountId{account}, mark);
+            py::list positions;
+            for (const auto& row : report.positions) {
+              py::dict item;
+              item["symbol"] = row.symbol.value();
+              item["quantity"] = row.quantity;
+              item["avg_ticks"] = row.avg_ticks;
+              item["realized_pnl"] = row.realized_pnl;
+              item["mark_ticks"] =
+                  row.mark_ticks ? py::object(py::int_(*row.mark_ticks)) : py::none();
+              item["unrealized_pnl"] =
+                  row.unrealized_pnl ? py::object(py::int_(*row.unrealized_pnl))
+                                     : py::none();
+              positions.append(item);
+            }
+            py::dict out;
+            out["account"] = report.account.value();
+            out["cash"] = report.cash;
+            out["reserved"] = report.reserved;
+            out["available"] = report.available;
+            out["fees_paid"] = report.fees_paid;
+            out["positions"] = positions;
+            out["realized_pnl"] = report.realized_pnl;
+            out["unrealized_pnl"] =
+                report.unrealized_pnl ? py::object(py::int_(*report.unrealized_pnl))
+                                      : py::none();
+            out["inventory_mark"] = report.inventory_mark;
+            out["equity"] = report.equity;
+            return out;
+          },
+          py::arg("account"), py::arg("mark") = MarkSource::LastTrade)
       .def(
           "mid_price",
           [](const Engine& engine, std::uint64_t symbol) -> py::object {
