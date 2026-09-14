@@ -88,7 +88,7 @@ class OrderBook {
       match_sell(order, trades, false);
     }
 
-    if (order.tif == TimeInForce::Gtc && !order.quantity.is_zero()) {
+    if (rests_on_book(order.tif) && !order.quantity.is_zero()) {
       rest(std::move(order));
     }
 
@@ -149,13 +149,15 @@ class OrderBook {
         .price = price,
         .quantity = quantity,
         .account = original->account,
-        .tif = TimeInForce::Gtc,
+        .tif = original->tif == TimeInForce::Gtd ? TimeInForce::Gtd : TimeInForce::Gtc,
         .symbol = original->symbol,
         .post_only = original->post_only,
         .reduce_only = original->reduce_only,
         .display = original->display,
+        .expire_at = original->expire_at,
     });
   }
+
 
   // Removes a resting order. Returns false if the id is not on the book.
   bool cancel(OrderId id) {
@@ -224,6 +226,25 @@ class OrderBook {
         break;
       }
       if (!is_market && price > limit) {
+        break;
+      }
+      const std::uint64_t take = std::min(remaining, level.total_quantity().value());
+      need += price.ticks() * static_cast<std::int64_t>(take);
+      remaining -= take;
+    }
+    return need;
+  }
+
+  // Full bid walk for short-margin cash checks on market sells.
+  std::int64_t estimate_sell_notional(Quantity quantity, bool is_market,
+                                      Price limit = Price{0}) const {
+    std::int64_t need = 0;
+    std::uint64_t remaining = quantity.value();
+    for (const auto& [price, level] : bids_) {
+      if (remaining == 0) {
+        break;
+      }
+      if (!is_market && price < limit) {
         break;
       }
       const std::uint64_t take = std::min(remaining, level.total_quantity().value());

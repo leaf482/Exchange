@@ -6,6 +6,7 @@
 #include "mercury/positions.hpp"
 #include "mercury/risk.hpp"
 
+#include <algorithm>
 #include <cstdint>
 #include <map>
 #include <optional>
@@ -58,6 +59,30 @@ class Engine {
 
   std::int64_t available_cash(AccountId account) const {
     return balances_.available(account);
+  }
+
+  std::uint64_t now() const { return now_; }
+
+  // Advance discrete clock to `time` (no-op if time <= now). Cancels resting
+  // GTD orders with expire_at <= now. Returns cancelled count.
+  std::size_t advance_time(std::uint64_t time) {
+    if (time <= now_) {
+      return 0;
+    }
+    now_ = time;
+    std::vector<OrderId> expired;
+    for (const auto& [id, open] : open_orders_) {
+      if (open.expire_at != 0 && open.expire_at <= now_) {
+        expired.push_back(id);
+      }
+    }
+    std::size_t cancelled = 0;
+    for (OrderId id : expired) {
+      if (cancel(id)) {
+        ++cancelled;
+      }
+    }
+    return cancelled;
   }
 
   SubmitResult add(Order order) {
@@ -114,7 +139,8 @@ class Engine {
       return true;
     }
 
-    reduce_open(id, open_it->second.remaining);
+    const Quantity remaining = open_it->second.remaining;
+    reduce_open(id, remaining);
     return inst.book.cancel(id);
   }
 
@@ -148,9 +174,10 @@ class Engine {
         .price = price,
         .quantity = quantity,
         .account = open.account,
-        .tif = TimeInForce::Gtc,
+        .tif = open.expire_at != 0 ? TimeInForce::Gtd : TimeInForce::Gtc,
         .symbol = symbol,
         .display = open.display,
+        .expire_at = open.expire_at,
     });
   }
 
@@ -266,6 +293,9 @@ class Engine {
     Quantity remaining;
     Price price{0};  // set for book rests (cash reservation); 0 for pending stops
     Quantity display{0};
+    std::uint64_t expire_at{0};
+    // Qty still covered by cash reservation (full buys; short portion of sells).
+    Quantity cash_reserve_qty{0};
   };
 
   struct Instrument {
@@ -295,18 +325,21 @@ class Engine {
 
   void add_open(OrderId id, Symbol symbol, AccountId account, Side side,
                 Quantity quantity, Price price = Price{0},
-                Quantity display = Quantity{0}) {
+                Quantity display = Quantity{0}, std::uint64_t expire_at = 0,
+                Quantity cash_reserve_qty = Quantity{0}) {
     open_orders_.insert_or_assign(
-        id, OpenOrder{symbol, account, side, quantity, price, display});
+        id, OpenOrder{symbol, account, side, quantity, price, display, expire_at,
+                      cash_reserve_qty});
     WorkingExposure& exposure = working_[{account, symbol}];
     if (side == Side::Buy) {
       exposure.buy += quantity.value();
     } else {
       exposure.sell += quantity.value();
     }
-    if (enforce_cash_ && side == Side::Buy && price.ticks() != 0) {
-      balances_.reserve(account,
-                        price.ticks() * static_cast<std::int64_t>(quantity.value()));
+    if (enforce_cash_ && price.ticks() != 0 && !cash_reserve_qty.is_zero()) {
+      balances_.reserve(
+          account,
+          price.ticks() * static_cast<std::int64_t>(cash_reserve_qty.value()));
     }
   }
 
@@ -323,10 +356,13 @@ class Engine {
     } else {
       exposure.sell -= fill.value();
     }
-    if (enforce_cash_ && open.side == Side::Buy && open.price.ticks() != 0) {
+    if (enforce_cash_ && open.price.ticks() != 0 && !open.cash_reserve_qty.is_zero()) {
+      const Quantity release_qty{
+          std::min(fill.value(), open.cash_reserve_qty.value())};
       balances_.release(
           open.account,
-          open.price.ticks() * static_cast<std::int64_t>(fill.value()));
+          open.price.ticks() * static_cast<std::int64_t>(release_qty.value()));
+      open.cash_reserve_qty = open.cash_reserve_qty - release_qty;
     }
 
     open.remaining = open.remaining - fill;
@@ -475,6 +511,13 @@ class Engine {
     if (decision != RiskDecision::Accept) {
       return SubmitResult{.decision = decision};
     }
+    if (order.tif == TimeInForce::Gtd) {
+      if (order.expire_at == 0 || order.expire_at <= now_) {
+        return SubmitResult{.decision = RiskDecision::InvalidExpire};
+      }
+    } else {
+      order.expire_at = 0;
+    }
     if (order.reduce_only) {
       const RiskDecision reduce =
           check_reduce_only(positions_, account, order.side, order.quantity, symbol);
@@ -491,6 +534,12 @@ class Engine {
       if (cash != RiskDecision::Accept) {
         return SubmitResult{.decision = cash};
       }
+    } else {
+      const RiskDecision cash =
+          check_sell_margin(account, symbol, order.price, order.quantity, false);
+      if (cash != RiskDecision::Accept) {
+        return SubmitResult{.decision = cash};
+      }
     }
 
     const OrderId id = order.id;
@@ -499,6 +548,7 @@ class Engine {
     const TimeInForce tif = order.tif;
     const Price order_price = order.price;
     const Quantity display = order.display;
+    const std::uint64_t expire_at = order.expire_at;
     auto trades = instrument(symbol).book.add(std::move(order));
     clear_stp_cancels(symbol);
 
@@ -509,8 +559,23 @@ class Engine {
     }
 
     const Quantity rested{original.value() - filled.value()};
-    if (tif == TimeInForce::Gtc && !rested.is_zero()) {
-      add_open(id, symbol, account, taker_side, rested, order_price, display);
+    if (rests_on_book(tif) && !rested.is_zero()) {
+      Quantity reserve_qty{0};
+      if (enforce_cash_ && order_price.ticks() != 0) {
+        if (taker_side == Side::Buy) {
+          reserve_qty = rested;
+        } else {
+          const std::uint64_t cover =
+              free_long(account, symbol, exposure.sell).value();
+          const std::uint64_t covered_fill = std::min(filled.value(), cover);
+          const std::uint64_t cover_left = cover - covered_fill;
+          const std::uint64_t short_rest =
+              rested.value() > cover_left ? rested.value() - cover_left : 0;
+          reserve_qty = Quantity{short_rest};
+        }
+      }
+      add_open(id, symbol, account, taker_side, rested, order_price, display,
+               expire_at, reserve_qty);
     }
 
     apply_trades(symbol, taker_side, trades);
@@ -537,6 +602,12 @@ class Engine {
     if (order.side == Side::Buy) {
       const RiskDecision cash =
           check_buy_cash(account, symbol, Price{0}, order.quantity, true);
+      if (cash != RiskDecision::Accept) {
+        return SubmitResult{.decision = cash};
+      }
+    } else {
+      const RiskDecision cash =
+          check_sell_margin(account, symbol, Price{0}, order.quantity, true);
       if (cash != RiskDecision::Accept) {
         return SubmitResult{.decision = cash};
       }
@@ -582,10 +653,53 @@ class Engine {
     return RiskDecision::Accept;
   }
 
+  Quantity free_long(AccountId account, Symbol symbol,
+                     std::uint64_t working_sell) const {
+    const std::int64_t pos = positions_.quantity(account, symbol);
+    const std::int64_t long_qty = pos > 0 ? pos : 0;
+    const std::int64_t free = long_qty - static_cast<std::int64_t>(working_sell);
+    return Quantity{static_cast<std::uint64_t>(free > 0 ? free : 0)};
+  }
+
+  Quantity short_qty(AccountId account, Symbol symbol, Quantity quantity,
+                     std::uint64_t working_sell) const {
+    const std::uint64_t cover = free_long(account, symbol, working_sell).value();
+    if (quantity.value() <= cover) {
+      return Quantity{0};
+    }
+    return Quantity{quantity.value() - cover};
+  }
+
+  // Margin for the uncovered (short) portion of a sell.
+  RiskDecision check_sell_margin(AccountId account, Symbol symbol, Price limit,
+                                 Quantity quantity, bool is_market) const {
+    if (!enforce_cash_) {
+      return RiskDecision::Accept;
+    }
+    const WorkingExposure exposure = working_for(account, symbol);
+    const Quantity uncovered = short_qty(account, symbol, quantity, exposure.sell);
+    if (uncovered.is_zero()) {
+      return RiskDecision::Accept;
+    }
+
+    std::int64_t need = 0;
+    if (!is_market) {
+      need = limit.ticks() * static_cast<std::int64_t>(uncovered.value());
+    } else {
+      need = book(symbol).estimate_sell_notional(uncovered, true);
+    }
+
+    if (balances_.available(account) < need) {
+      return RiskDecision::InsufficientCash;
+    }
+    return RiskDecision::Accept;
+  }
+
   RiskLimits limits_;
   SelfTradePrevention stp_;
   FeeSchedule fees_;
   bool enforce_cash_{false};
+  std::uint64_t now_{0};
   Balances balances_;
   std::map<Symbol, Instrument> instruments_;
   Positions positions_;

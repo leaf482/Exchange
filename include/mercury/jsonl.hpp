@@ -97,6 +97,9 @@ inline TimeInForce parse_tif(std::string_view tif) {
   if (tif == "fok") {
     return TimeInForce::Fok;
   }
+  if (tif == "gtd") {
+    return TimeInForce::Gtd;
+  }
   throw std::runtime_error("invalid tif");
 }
 
@@ -108,6 +111,8 @@ inline const char* format_tif(TimeInForce tif) {
       return "ioc";
     case TimeInForce::Fok:
       return "fok";
+    case TimeInForce::Gtd:
+      return "gtd";
   }
   return "gtc";
 }
@@ -152,6 +157,9 @@ inline RiskDecision parse_decision(std::string_view decision) {
   if (decision == "insufficient_cash") {
     return RiskDecision::InsufficientCash;
   }
+  if (decision == "invalid_expire") {
+    return RiskDecision::InvalidExpire;
+  }
   throw std::runtime_error("invalid decision");
 }
 
@@ -169,6 +177,8 @@ inline const char* format_decision(RiskDecision decision) {
       return "reduce_only";
     case RiskDecision::InsufficientCash:
       return "insufficient_cash";
+    case RiskDecision::InvalidExpire:
+      return "invalid_expire";
   }
   return "accept";
 }
@@ -197,6 +207,9 @@ inline Event parse_event_line(std::string_view line) {
         .reduce_only = detail::optional_bool(line, "reduce_only"),
         .display = Quantity{static_cast<std::uint64_t>(
             detail::field(line, "display") ? detail::require_int(line, "display") : 0)},
+        .expire_at = static_cast<std::uint64_t>(
+            detail::field(line, "expire_at") ? detail::require_int(line, "expire_at")
+                                             : 0),
     };
   }
   if (type == "market") {
@@ -279,6 +292,9 @@ inline Event parse_event_line(std::string_view line) {
               .display = Quantity{static_cast<std::uint64_t>(
                   detail::field(line, "display") ? detail::require_int(line, "display")
                                                  : 0)},
+              .expire_at = static_cast<std::uint64_t>(
+                  detail::field(line, "expire_at") ? detail::require_int(line, "expire_at")
+                                                   : 0),
           },
       };
     }
@@ -321,6 +337,11 @@ inline Event parse_event_line(std::string_view line) {
     }
     throw std::runtime_error("invalid reject order_type");
   }
+  if (type == "time") {
+    return TimeAdvance{
+        .time = static_cast<std::uint64_t>(detail::require_int(line, "time")),
+    };
+  }
   throw std::runtime_error("unknown event type: " + type);
 }
 
@@ -346,6 +367,9 @@ inline std::string format_event_line(const Event& event) {
           }
           if (!payload.display.is_zero()) {
             out << ",\"display\":" << payload.display.value();
+          }
+          if (payload.expire_at != 0) {
+            out << ",\"expire_at\":" << payload.expire_at;
           }
           out << '}';
         } else if constexpr (std::is_same_v<T, MarketOrder>) {
@@ -402,6 +426,9 @@ inline std::string format_event_line(const Event& event) {
                   if (!attempt.display.is_zero()) {
                     out << ",\"display\":" << attempt.display.value();
                   }
+                  if (attempt.expire_at != 0) {
+                    out << ",\"expire_at\":" << attempt.expire_at;
+                  }
                 } else if constexpr (std::is_same_v<A, MarketOrder>) {
                   out << ",\"order_type\":\"market\""
                       << ",\"id\":" << attempt.id.value()
@@ -428,6 +455,8 @@ inline std::string format_event_line(const Event& event) {
               },
               payload.attempt);
           out << '}';
+        } else if constexpr (std::is_same_v<T, TimeAdvance>) {
+          out << "{\"type\":\"time\",\"time\":" << payload.time << '}';
         } else {
           out << "{\"type\":\"stop\""
               << ",\"id\":" << payload.id.value()

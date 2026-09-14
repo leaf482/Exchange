@@ -12,6 +12,7 @@ from mercury_sim.events import (
     RejectEvent,
     ReplaceEvent,
     StopEvent,
+    TimeEvent,
 )
 
 
@@ -45,8 +46,11 @@ class Engine:
         self._next_trade_id = 1
         self._cash: dict[int, int] = {}
         self._reserved: dict[int, int] = {}
-        # Resting buy reservations: order_id -> (account, price, remaining_qty)
-        self._buy_rests: dict[int, tuple[int, int, int]] = {}
+        # Resting cash reservations: order_id -> (account, price, reserve_qty)
+        self._cash_rests: dict[int, tuple[int, int, int]] = {}
+        # GTD deadlines for resting orders: order_id -> expire_at
+        self._expire_at: dict[int, int] = {}
+        self._now = 0
 
     def book(self, symbol: int = 0) -> OrderBook:
         return self._books.setdefault(symbol, OrderBook(stp=self._stp))
@@ -65,6 +69,20 @@ class Engine:
 
     def set_enforce_cash(self, enabled: bool) -> None:
         self._enforce_cash = enabled
+
+    def now(self) -> int:
+        return self._now
+
+    def advance_time(self, time: int) -> int:
+        if time <= self._now:
+            return 0
+        self._now = time
+        expired = [oid for oid, exp in list(self._expire_at.items()) if exp <= self._now]
+        cancelled = 0
+        for order_id in expired:
+            if self.cancel(order_id):
+                cancelled += 1
+        return cancelled
 
     def position(self, account: int, symbol: int = 0) -> int:
         return self._positions.get((account, symbol), 0)
@@ -114,16 +132,26 @@ class Engine:
         return self.book(symbol).snapshot(max_levels)
 
     def add_limit(self, event: LimitEvent) -> list[Trade]:
+        expire_at = event.expire_at
+        if event.tif == "gtd":
+            if expire_at == 0 or expire_at <= self._now:
+                return []
+        else:
+            expire_at = 0
         if event.reduce_only and not self._allows_reduce_only(
             event.account, event.side, event.quantity, event.symbol
         ):
             return []
-        if (
-            self._enforce_cash
-            and event.side == "buy"
-            and self.available_cash(event.account) < event.price * event.quantity
-        ):
-            return []
+        working_sell = self._working_sell(event.account, event.symbol)
+        if self._enforce_cash and event.side == "buy":
+            if self.available_cash(event.account) < event.price * event.quantity:
+                return []
+        if self._enforce_cash and event.side == "sell":
+            uncovered = self._short_qty(
+                event.account, event.symbol, event.quantity, working_sell
+            )
+            if uncovered and self.available_cash(event.account) < event.price * uncovered:
+                return []
         order = Order(
             id=event.id,
             side=event.side,
@@ -135,20 +163,33 @@ class Engine:
             post_only=event.post_only,
             reduce_only=event.reduce_only,
             display=event.display,
+            expire_at=expire_at,
         )
         original = event.quantity
         trades = self.book(event.symbol).add_limit(order)
-        self._release_buy_rests_from_trades(trades)
+        self._release_cash_rests_from_trades(trades)
         filled = sum(trade.quantity for trade in trades)
         rested = original - filled
         if (
             self._enforce_cash
-            and event.side == "buy"
-            and event.tif == "gtc"
+            and event.tif in ("gtc", "gtd")
             and rested > 0
             and self.book(event.symbol).is_live(event.id)
         ):
-            self._reserve_buy(event.id, event.account, event.price, rested)
+            if event.side == "buy":
+                self._reserve_cash(event.id, event.account, event.price, rested)
+            else:
+                cover = self._free_long(event.account, event.symbol, working_sell)
+                covered_fill = min(filled, cover)
+                cover_left = cover - covered_fill
+                short_rest = max(0, rested - cover_left)
+                if short_rest:
+                    self._reserve_cash(event.id, event.account, event.price, short_rest)
+        if event.tif in ("gtc", "gtd") and rested > 0 and self.book(event.symbol).is_live(
+            event.id
+        ):
+            if expire_at:
+                self._expire_at[event.id] = expire_at
         self._note_trades(event.symbol, trades, event.side)
         trades.extend(self._drain_stops(event.symbol))
         return trades
@@ -164,6 +205,17 @@ class Engine:
             )
             if self.available_cash(event.account) < need:
                 return []
+        if self._enforce_cash and event.side == "sell":
+            working_sell = self._working_sell(event.account, event.symbol)
+            uncovered = self._short_qty(
+                event.account, event.symbol, event.quantity, working_sell
+            )
+            if uncovered:
+                need = self.book(event.symbol).estimate_sell_notional(
+                    uncovered, is_market=True
+                )
+                if self.available_cash(event.account) < need:
+                    return []
         order = Order(
             id=event.id,
             side=event.side,
@@ -174,7 +226,7 @@ class Engine:
             reduce_only=event.reduce_only,
         )
         trades = self.book(event.symbol).add_market(order)
-        self._release_buy_rests_from_trades(trades)
+        self._release_cash_rests_from_trades(trades)
         self._note_trades(event.symbol, trades, event.side)
         trades.extend(self._drain_stops(event.symbol))
         return trades
@@ -193,7 +245,8 @@ class Engine:
             self._stops[symbol] = [item for item in pending if item.event.id != order_id]
             return True
 
-        self._release_buy_rest(order_id)
+        self._release_cash_rest(order_id)
+        self._expire_at.pop(order_id, None)
         for book in self._books.values():
             if book.cancel(order_id):
                 return True
@@ -204,23 +257,38 @@ class Engine:
             return None
         for symbol, book in self._books.items():
             original = next((o for o in book.live_orders() if o.id == order_id), None)
+            expire_at = self._expire_at.get(order_id, 0)
             trades = book.replace(order_id, price, quantity)
             if trades is None:
                 continue
-            self._release_buy_rest(order_id)
-            self._release_buy_rests_from_trades(trades)
+            self._release_cash_rest(order_id)
+            self._expire_at.pop(order_id, None)
+            self._release_cash_rests_from_trades(trades)
             side = original.side if original is not None else "buy"
             if (
                 self._enforce_cash
                 and original is not None
-                and original.side == "buy"
                 and quantity > 0
                 and book.is_live(order_id)
             ):
                 filled = sum(trade.quantity for trade in trades)
                 rested = quantity - filled
                 if rested > 0:
-                    self._reserve_buy(order_id, original.account, price, rested)
+                    if original.side == "buy":
+                        self._reserve_cash(order_id, original.account, price, rested)
+                    else:
+                        working_sell = self._working_sell(original.account, symbol)
+                        # After cancel, working no longer includes this order.
+                        cover = self._free_long(original.account, symbol, working_sell)
+                        covered_fill = min(filled, cover)
+                        cover_left = cover - covered_fill
+                        short_rest = max(0, rested - cover_left)
+                        if short_rest:
+                            self._reserve_cash(
+                                order_id, original.account, price, short_rest
+                            )
+            if quantity > 0 and book.is_live(order_id) and expire_at:
+                self._expire_at[order_id] = expire_at
             self._note_trades(symbol, trades, side)
             trades.extend(self._drain_stops(symbol))
             return trades
@@ -274,6 +342,9 @@ class Engine:
             return []
         if isinstance(event, RejectEvent):
             return []
+        if isinstance(event, TimeEvent):
+            self.advance_time(event.time)
+            return []
         self.cancel(event.id)
         return []
 
@@ -285,13 +356,34 @@ class Engine:
             return pos < 0 and quantity <= -pos
         return pos > 0 and quantity <= pos
 
-    def _reserve_buy(self, order_id: int, account: int, price: int, quantity: int) -> None:
+    def _working_sell(self, account: int, symbol: int) -> int:
+        total = 0
+        for order in self.book(symbol).live_orders():
+            if order.account == account and order.side == "sell":
+                total += order.quantity
+        for item in self._stops.get(symbol, []):
+            if item.event.account == account and item.event.side == "sell":
+                total += item.event.quantity
+        return total
+
+    def _free_long(self, account: int, symbol: int, working_sell: int) -> int:
+        pos = self.position(account, symbol)
+        long_qty = pos if pos > 0 else 0
+        return max(0, long_qty - working_sell)
+
+    def _short_qty(
+        self, account: int, symbol: int, quantity: int, working_sell: int
+    ) -> int:
+        cover = self._free_long(account, symbol, working_sell)
+        return max(0, quantity - cover)
+
+    def _reserve_cash(self, order_id: int, account: int, price: int, quantity: int) -> None:
         amount = price * quantity
         self._reserved[account] = self.reserved_cash(account) + amount
-        self._buy_rests[order_id] = (account, price, quantity)
+        self._cash_rests[order_id] = (account, price, quantity)
 
-    def _release_buy_rest(self, order_id: int, quantity: Optional[int] = None) -> None:
-        rest = self._buy_rests.get(order_id)
+    def _release_cash_rest(self, order_id: int, quantity: Optional[int] = None) -> None:
+        rest = self._cash_rests.get(order_id)
         if rest is None:
             return
         account, price, remaining = rest
@@ -304,13 +396,13 @@ class Engine:
             self._reserved[account] = held
         left = remaining - release_qty
         if left <= 0:
-            self._buy_rests.pop(order_id, None)
+            self._cash_rests.pop(order_id, None)
         else:
-            self._buy_rests[order_id] = (account, price, left)
+            self._cash_rests[order_id] = (account, price, left)
 
-    def _release_buy_rests_from_trades(self, trades: list[Trade]) -> None:
+    def _release_cash_rests_from_trades(self, trades: list[Trade]) -> None:
         for trade in trades:
-            self._release_buy_rest(trade.maker_id, trade.quantity)
+            self._release_cash_rest(trade.maker_id, trade.quantity)
 
     def _note_trades(
         self, symbol: int, trades: list[Trade], taker_side: Literal["buy", "sell"]

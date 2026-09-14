@@ -27,6 +27,7 @@ add_executable(mercury_tests
   engine_cash_test.cpp
   event_reject_test.cpp
   order_book_iceberg_test.cpp
+  engine_gtd_short_test.cpp
 )
 target_link_libraries(mercury_tests PRIVATE mercury GTest::gtest_main)
 mercury_set_warnings(mercury_tests)

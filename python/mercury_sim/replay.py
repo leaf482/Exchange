@@ -13,6 +13,7 @@ from mercury_sim.events import (
     RejectEvent,
     ReplaceEvent,
     StopEvent,
+    TimeEvent,
     read_jsonl,
 )
 
@@ -21,6 +22,8 @@ def apply_event(book: OrderBook, event: Event) -> list[Trade]:
     """Apply to a bare OrderBook. Stop events are not supported here."""
     if isinstance(event, StopEvent):
         raise ValueError("stop events require Engine replay")
+    if isinstance(event, TimeEvent):
+        raise ValueError("time events require Engine replay")
     if isinstance(event, LimitEvent):
         return book.add_limit(
             Order(
@@ -34,6 +37,7 @@ def apply_event(book: OrderBook, event: Event) -> list[Trade]:
                 post_only=event.post_only,
                 reduce_only=getattr(event, "reduce_only", False),
                 display=getattr(event, "display", 0),
+                expire_at=getattr(event, "expire_at", 0),
             )
         )
     if isinstance(event, MarketEvent):

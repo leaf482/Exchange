@@ -124,6 +124,7 @@ PYBIND11_MODULE(mercury_engine, m) {
       .value("Gtc", TimeInForce::Gtc)
       .value("Ioc", TimeInForce::Ioc)
       .value("Fok", TimeInForce::Fok)
+      .value("Gtd", TimeInForce::Gtd)
       .export_values();
 
   py::enum_<RiskDecision>(m, "RiskDecision")
@@ -133,6 +134,7 @@ PYBIND11_MODULE(mercury_engine, m) {
       .value("PostOnly", RiskDecision::PostOnly)
       .value("ReduceOnly", RiskDecision::ReduceOnly)
       .value("InsufficientCash", RiskDecision::InsufficientCash)
+      .value("InvalidExpire", RiskDecision::InvalidExpire)
       .export_values();
 
   py::enum_<SelfTradePrevention>(m, "SelfTradePrevention")
@@ -170,7 +172,7 @@ PYBIND11_MODULE(mercury_engine, m) {
           [](Engine& engine, std::uint64_t id, Side side, std::int64_t price,
              std::uint64_t quantity, std::uint64_t account, TimeInForce tif,
              std::uint64_t symbol, bool post_only, bool reduce_only,
-             std::uint64_t display) {
+             std::uint64_t display, std::uint64_t expire_at) {
             return submit_to_dict(engine.add(Order{
                 .id = OrderId{id},
                 .side = side,
@@ -182,12 +184,14 @@ PYBIND11_MODULE(mercury_engine, m) {
                 .post_only = post_only,
                 .reduce_only = reduce_only,
                 .display = Quantity{display},
+                .expire_at = expire_at,
             }));
           },
           py::arg("id"), py::arg("side"), py::arg("price"), py::arg("quantity"),
           py::arg("account") = 0, py::arg("tif") = TimeInForce::Gtc,
           py::arg("symbol") = 0, py::arg("post_only") = false,
-          py::arg("reduce_only") = false, py::arg("display") = 0)
+          py::arg("reduce_only") = false, py::arg("display") = 0,
+          py::arg("expire_at") = 0)
       .def(
           "add_market",
           [](Engine& engine, std::uint64_t id, Side side, std::uint64_t quantity,
@@ -351,5 +355,7 @@ PYBIND11_MODULE(mercury_engine, m) {
           },
           py::arg("account"), py::arg("amount"))
       .def("set_enforce_cash", &Engine::set_enforce_cash, py::arg("enabled"))
-      .def("enforce_cash", &Engine::enforce_cash);
+      .def("enforce_cash", &Engine::enforce_cash)
+      .def("now", &Engine::now)
+      .def("advance_time", &Engine::advance_time, py::arg("time"));
 }

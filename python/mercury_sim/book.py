@@ -12,11 +12,12 @@ class Order:
     price: int
     quantity: int
     account: int = 0
-    tif: Literal["gtc", "ioc", "fok"] = "gtc"
+    tif: Literal["gtc", "ioc", "fok", "gtd"] = "gtc"
     symbol: int = 0
     post_only: bool = False
     reduce_only: bool = False
     display: int = 0  # 0 = fully visible; snapshot uses min(qty, display)
+    expire_at: int = 0
 
 
 def visible_quantity(order: Order) -> int:
@@ -94,7 +95,7 @@ class OrderBook:
             return []
 
         trades = self._match(order, is_market=False)
-        if order.tif == "gtc" and order.quantity > 0:
+        if order.tif in ("gtc", "gtd") and order.quantity > 0:
             self._rest(order)
         return trades
 
@@ -132,11 +133,12 @@ class OrderBook:
             price=price,
             quantity=quantity,
             account=original.account,
-            tif="gtc",
+            tif="gtd" if original.expire_at else "gtc",
             symbol=original.symbol,
             post_only=original.post_only,
             reduce_only=original.reduce_only,
             display=original.display,
+            expire_at=original.expire_at,
         )
         self.cancel(order_id)
         if quantity == 0:
@@ -197,6 +199,20 @@ class OrderBook:
             if not is_market and price > limit:
                 break
             level_qty = sum(order.quantity for order in self._asks[price])
+            take = min(remaining, level_qty)
+            need += price * take
+            remaining -= take
+        return need
+
+    def estimate_sell_notional(self, quantity: int, is_market: bool, limit: int = 0) -> int:
+        need = 0
+        remaining = quantity
+        for price in sorted(self._bids, reverse=True):
+            if remaining <= 0:
+                break
+            if not is_market and price < limit:
+                break
+            level_qty = sum(order.quantity for order in self._bids[price])
             take = min(remaining, level_qty)
             need += price * take
             remaining -= take

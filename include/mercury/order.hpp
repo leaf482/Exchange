@@ -7,7 +7,11 @@
 
 namespace mercury {
 
-enum class TimeInForce : std::uint8_t { Gtc, Ioc, Fok };
+enum class TimeInForce : std::uint8_t { Gtc, Ioc, Fok, Gtd };
+
+inline bool rests_on_book(TimeInForce tif) {
+  return tif == TimeInForce::Gtc || tif == TimeInForce::Gtd;
+}
 
 // When enabled, a taker does not trade against its own resting orders.
 // CancelResting: drop the resting order and keep matching.
@@ -26,6 +30,8 @@ struct Order {
   // Iceberg peak: 0 = fully visible. Snapshot shows min(quantity, display);
   // matching still uses full quantity.
   Quantity display{0};
+  // Discrete engine clock deadline; required when tif == Gtd (must be > now).
+  std::uint64_t expire_at{0};
 
   constexpr bool operator==(const Order&) const = default;
 };

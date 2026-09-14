@@ -20,17 +20,19 @@ Engine                     risk -> per-Symbol OrderBook -> positions + working
         +-- Balances       cash (tick×qty); optional enforce on buys
         +-- RiskLimits     max order size, max abs position (per symbol)
         |
-EventLog / jsonl           Engine replay (+ reject audit no-ops)
+EventLog / jsonl           Engine replay (+ reject no-ops, GTD `time` ticks)
 ```
 
 ## Matching
 
 - Limit: match opposite side while prices cross; GTC rests remainder,
   IOC discards remainder, FOK requires a full immediate fill or rejects.
+  GTD rests like GTC until `expire_at` on the Engine clock (`time` events).
   `post_only` rejects (no fill, no rest) if the limit would take liquidity.
   `reduce_only` rejects unless the order shrinks an existing position (no flip).
   Iceberg: optional `display` peak; book snapshot shows peak only, matching
-  still consumes full remaining quantity.- Market: match available liquidity, discard unfilled qty.
+  still consumes full remaining quantity.
+- Market: match available liquidity, discard unfilled qty.
 - Stop: armed until last trade crosses `stop_price` (buy `>=`, sell `<=`),
   then becomes limit (`limit_price`) or market; same id; cancel removes pending.
 - Cancel: remove resting order / pending stop by `OrderId` (routed by symbol).
@@ -44,6 +46,7 @@ EventLog / jsonl           Engine replay (+ reject audit no-ops)
 - Cash: Engine ledger in tick×qty; buys debit notional (+fee), sells credit
   (−fee). Optional `enforce_cash` rejects buys that exceed available cash
   (`cash - reserved`); resting GTC buys reserve `price * qty` until fill/cancel.
+  Uncovered (short) sells similarly require/reserve cash for the short portion.
 - Reject audit: JSONL `reject` records `RiskDecision` + attempted order; replay
   ignores it (session/audit only).
 - Instruments are isolated: orders and last-trade stops never cross symbols.

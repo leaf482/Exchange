@@ -12,11 +12,12 @@ class LimitEvent:
     price: int
     quantity: int
     account: int = 0
-    tif: Literal["gtc", "ioc", "fok"] = "gtc"
+    tif: Literal["gtc", "ioc", "fok", "gtd"] = "gtc"
     symbol: int = 0
     post_only: bool = False
     reduce_only: bool = False
     display: int = 0
+    expire_at: int = 0
     type: Literal["limit"] = "limit"
 
 
@@ -73,6 +74,7 @@ Decision = Literal[
     "post_only",
     "reduce_only",
     "insufficient_cash",
+    "invalid_expire",
 ]
 
 
@@ -87,16 +89,30 @@ class RejectEvent:
     price: Optional[int] = None
     stop_price: Optional[int] = None
     limit_price: Optional[int] = None
-    tif: Literal["gtc", "ioc", "fok"] = "gtc"
+    tif: Literal["gtc", "ioc", "fok", "gtd"] = "gtc"
     symbol: int = 0
     post_only: bool = False
     reduce_only: bool = False
     display: int = 0
+    expire_at: int = 0
     type: Literal["reject"] = "reject"
 
 
+@dataclass(frozen=True)
+class TimeEvent:
+    time: int
+    type: Literal["time"] = "time"
+
+
 Event = Union[
-    LimitEvent, MarketEvent, CancelEvent, ReplaceEvent, MassCancelEvent, StopEvent, RejectEvent
+    LimitEvent,
+    MarketEvent,
+    CancelEvent,
+    ReplaceEvent,
+    MassCancelEvent,
+    StopEvent,
+    RejectEvent,
+    TimeEvent,
 ]
 
 
@@ -111,6 +127,8 @@ def event_to_dict(event: Event) -> dict:
             del data["reduce_only"]
         if not event.display:
             del data["display"]
+        if not event.expire_at:
+            del data["expire_at"]
     if isinstance(event, MarketEvent) and not event.reduce_only:
         del data["reduce_only"]
     if isinstance(event, RejectEvent):
@@ -121,6 +139,8 @@ def event_to_dict(event: Event) -> dict:
             data.pop("reduce_only", None)
         if event.order_type != "limit" or not event.display:
             data.pop("display", None)
+        if event.order_type != "limit" or not event.expire_at:
+            data.pop("expire_at", None)
         if event.order_type != "limit":
             data.pop("tif", None)
         if event.order_type == "market":
@@ -153,6 +173,7 @@ def event_from_dict(data: dict) -> Event:
             post_only=bool(data.get("post_only", False)),
             reduce_only=bool(data.get("reduce_only", False)),
             display=int(data.get("display", 0)),
+            expire_at=int(data.get("expire_at", 0)),
         )
     if kind == "market":
         return MarketEvent(
@@ -204,7 +225,10 @@ def event_from_dict(data: dict) -> Event:
             post_only=bool(data.get("post_only", False)),
             reduce_only=bool(data.get("reduce_only", False)),
             display=int(data.get("display", 0)),
+            expire_at=int(data.get("expire_at", 0)),
         )
+    if kind == "time":
+        return TimeEvent(time=int(data["time"]))
     raise ValueError(f"unknown event type: {kind}")
 
 

@@ -201,6 +201,31 @@ class FeesMassCancelTests(unittest.TestCase):
         self.assertEqual(sum(t.quantity for t in trades), 7)
         self.assertEqual(book.snapshot(1).asks[0].quantity, 2)
 
+    def test_gtd_expires_on_advance(self) -> None:
+        from mercury_sim.events import LimitEvent, TimeEvent
+
+        engine = Engine()
+        engine.apply(
+            LimitEvent(
+                id=1, side="buy", price=100, quantity=1, account=1, tif="gtd", expire_at=5
+            )
+        )
+        self.assertEqual(engine.book().best_bid(), 100)
+        engine.apply(TimeEvent(time=5))
+        self.assertIsNone(engine.book().best_bid())
+        self.assertEqual(engine.now(), 5)
+
+    def test_short_margin_reserves(self) -> None:
+        engine = Engine(enforce_cash=True)
+        engine.set_cash(1, 500)
+        trades = engine.apply(
+            LimitEvent(id=1, side="sell", price=100, quantity=3, account=1)
+        )
+        self.assertEqual(trades, [])
+        self.assertEqual(engine.reserved_cash(1), 300)
+        self.assertTrue(engine.cancel(1))
+        self.assertEqual(engine.reserved_cash(1), 0)
+
 
 class EngineStopTests(unittest.TestCase):
     def test_stop_fires_on_last_trade(self) -> None:

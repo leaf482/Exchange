@@ -14,7 +14,8 @@ enum class RiskDecision : std::uint8_t {
   PositionLimit,
   PostOnly,           // would take liquidity
   ReduceOnly,         // would open, increase, or flip position
-  InsufficientCash,   // buy notional exceeds cash (when enforced)
+  InsufficientCash,   // buy/short notional exceeds available cash (when enforced)
+  InvalidExpire,      // GTD missing/expired expire_at
 };
 
 struct RiskLimits {

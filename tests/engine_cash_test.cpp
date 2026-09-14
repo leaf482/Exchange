@@ -40,14 +40,15 @@ TEST(EngineCash, UpdatesOnFill) {
 }
 
 TEST(EngineCash, RejectsBuyWhenEnforced) {
-  Engine engine{RiskLimits{}, {}, FeeSchedule{}, true};
-  engine.set_cash(AccountId{2}, 100);
-
+  Engine engine;
   engine.add(Order{.id = OrderId{1},
                    .side = Side::Sell,
                    .price = Price{100},
                    .quantity = Quantity{5},
                    .account = AccountId{1}});
+  engine.set_enforce_cash(true);
+  engine.set_cash(AccountId{2}, 100);
+
   const auto rejected = engine.add(Order{.id = OrderId{2},
                                          .side = Side::Buy,
                                          .price = Price{100},
@@ -61,14 +62,14 @@ TEST(EngineCash, RejectsBuyWhenEnforced) {
 
 TEST(EngineCash, AcceptsBuyWithEnoughCash) {
   Engine engine;
-  engine.set_enforce_cash(true);
-  engine.set_cash(AccountId{2}, 500);
-
   engine.add(Order{.id = OrderId{1},
                    .side = Side::Sell,
                    .price = Price{100},
                    .quantity = Quantity{5},
                    .account = AccountId{1}});
+  engine.set_enforce_cash(true);
+  engine.set_cash(AccountId{2}, 500);
+
   const auto fill = engine.add(Order{.id = OrderId{2},
                                      .side = Side::Buy,
                                      .price = Price{100},
@@ -126,6 +127,8 @@ TEST(EngineCash, MakerBuyFillReleasesReservation) {
             RiskDecision::Accept);
   EXPECT_EQ(engine.reserved_cash(AccountId{1}), 500);
 
+  // Taker sell is uncovered; fund short margin then take the bid.
+  engine.set_cash(AccountId{2}, 500);
   ASSERT_EQ(engine
                 .add(Order{.id = OrderId{2},
                            .side = Side::Sell,

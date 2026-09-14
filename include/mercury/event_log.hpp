@@ -55,8 +55,15 @@ inline RejectEvent make_reject(RiskDecision decision, StopOrder order) {
   return RejectEvent{.decision = decision, .attempt = std::move(order)};
 }
 
+// Discrete clock advance for GTD expiry (Engine-only).
+struct TimeAdvance {
+  std::uint64_t time{0};
+
+  constexpr bool operator==(const TimeAdvance&) const = default;
+};
+
 using Event = std::variant<Order, MarketOrder, CancelOrder, StopOrder, ReplaceOrder,
-                           MassCancelOrder, RejectEvent>;
+                           MassCancelOrder, RejectEvent, TimeAdvance>;
 
 class EventLog {
  public:
@@ -93,6 +100,8 @@ inline std::vector<Trade> apply(OrderBook& book, const Event& event) {
           throw std::runtime_error("mass_cancel events require Engine replay");
         } else if constexpr (std::is_same_v<T, RejectEvent>) {
           return {};
+        } else if constexpr (std::is_same_v<T, TimeAdvance>) {
+          throw std::runtime_error("time events require Engine replay");
         } else {
           throw std::runtime_error("stop events require Engine replay");
         }
@@ -128,6 +137,9 @@ inline SubmitResult apply(Engine& engine, const Event& event) {
           engine.mass_cancel(payload.filter);
           return SubmitResult{.decision = RiskDecision::Accept};
         } else if constexpr (std::is_same_v<T, RejectEvent>) {
+          return SubmitResult{.decision = RiskDecision::Accept};
+        } else if constexpr (std::is_same_v<T, TimeAdvance>) {
+          engine.advance_time(payload.time);
           return SubmitResult{.decision = RiskDecision::Accept};
         } else {
           return engine.add_stop(payload);
