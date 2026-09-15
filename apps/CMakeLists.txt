@@ -5,3 +5,7 @@ mercury_set_warnings(jsonl_replay)
 add_executable(book_snapshot book_snapshot.cpp)
 target_link_libraries(book_snapshot PRIVATE mercury)
 mercury_set_warnings(book_snapshot)
+
+add_executable(account_report account_report.cpp)
+target_link_libraries(account_report PRIVATE mercury)
+mercury_set_warnings(account_report)

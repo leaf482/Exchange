@@ -4,8 +4,9 @@ Deterministic, low-latency exchange simulator and trading engine in C++23.
 
 ## Current scope
 
-Matching engine (limit/market/cancel), positions, pre-trade risk, event replay,
-latency benchmarks, and a Python market simulator / analyzer.
+Matching engine (limit/market/cancel, TIF/GTD, stops, replace, mass cancel,
+iceberg tip-refill), positions/PnL, cash+margin risk, event replay, latency
+benchmarks, account equity reports, and a Python market simulator / analyzer.
 
 ## Build
 
@@ -55,4 +56,6 @@ Replay the same JSONL with the C++ engine:
 ```bash
 ./build/apps/jsonl_replay events.jsonl
 ./build/apps/book_snapshot events.jsonl 5
+./build/apps/account_report events.jsonl 1
+./build/apps/account_report events.jsonl 1 mid
 ```

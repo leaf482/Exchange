@@ -166,4 +166,45 @@ BENCHMARK(BM_MassCancelAcrossSymbols)
     ->Arg(8)
     ->Arg(32);
 
+// Iceberg: tip-refill walk of display=1 across a large hidden size.
+static void BM_IcebergTipRefill(benchmark::State& state) {
+  const int hidden = static_cast<int>(state.range(0));
+  std::uint64_t id = 1;
+  for (auto _ : state) {
+    state.PauseTiming();
+    Engine engine;
+    engine.add(Order{.id = OrderId{id++},
+                     .side = Side::Sell,
+                     .price = Price{100},
+                     .quantity = Quantity{static_cast<std::uint64_t>(hidden)},
+                     .account = AccountId{1},
+                     .display = Quantity{1}});
+    auto buy = make_order(id++, Side::Buy, Price{100},
+                          static_cast<std::uint64_t>(hidden), AccountId{2});
+    state.ResumeTiming();
+
+    auto result = engine.add(std::move(buy));
+    benchmark::DoNotOptimize(result);
+  }
+}
+
+// Build a small book, then snapshot one account.
+static void BM_AccountReport(benchmark::State& state) {
+  std::uint64_t id = 1;
+  for (auto _ : state) {
+    state.PauseTiming();
+    Engine engine;
+    engine.set_cash(AccountId{1}, 100'000);
+    engine.add(make_order(id++, Side::Sell, Price{100}, 10, AccountId{2}));
+    engine.add(make_order(id++, Side::Buy, Price{100}, 5, AccountId{1}));
+    state.ResumeTiming();
+
+    auto report = engine.account_report(AccountId{1});
+    benchmark::DoNotOptimize(report);
+  }
+}
+
+BENCHMARK(BM_IcebergTipRefill)->Apply(configure_latency)->Arg(32)->Arg(128);
+BENCHMARK(BM_AccountReport)->Apply(configure_latency);
+
 BENCHMARK_MAIN();

@@ -4,9 +4,9 @@ Incremental work only. Correctness and measurement before concurrency.
 
 ## Progress (portfolio core)
 
-Matching / risk / accounting for a single-threaded exchange sim is largely in
-place (~95% of the intended core). Remaining work is optional polish and
-anything outside the matching path (net/UI) — not required for correctness.
+Matching / risk / accounting for a single-threaded exchange sim is complete
+for the intended portfolio core (~100%). Optional work is outside the matching
+path (net/UI) or concurrency after a measured hotspot.
 
 | Area | Status |
 | --- | --- |
@@ -14,7 +14,7 @@ anything outside the matching path (net/UI) — not required for correctness.
 | Risk (size/position, STP, post-only, reduce-only, cash+buy/short reserve) | Done |
 | Positions / PnL / fees / TradeId / account report | Done |
 | Deterministic JSONL + Engine replay + Python parity | Done |
-| Latency benches (single-thread) | Done |
+| Latency benches (single-thread; refreshed) | Done — no shard hotspot |
 | Networking / UI / multi-thread shards | Not started (deferred) |
 
 ## Done
@@ -45,11 +45,13 @@ anything outside the matching path (net/UI) — not required for correctness.
 - Pending stops may set `expire_at` and expire on the same clock
 - Short margin under `enforce_cash`: uncovered sells need/reserve cash like buys
 - Account report (cash / reserved / positions / mark PnL / equity)
+- `account_report` CLI + iceberg/account_report latency benches (refreshed)
 
 ## Next (small steps)
 
-1. Shard-by-symbol matching only after benches show a hotspot
-2. Optional networking / storage / UI outside the matching core
+1. Optional networking / storage / UI outside the matching core
+2. Shard-by-symbol only if future benches show a real hotspot (none yet; see
+   `docs/latency.md`)
 
 ## Later
 
