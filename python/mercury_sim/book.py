@@ -16,14 +16,24 @@ class Order:
     symbol: int = 0
     post_only: bool = False
     reduce_only: bool = False
-    display: int = 0  # 0 = fully visible; snapshot uses min(qty, display)
+    display: int = 0  # peak; 0 = fully visible
+    visible: int = 0  # current tip (armed on rest)
     expire_at: int = 0
+
+
+def arm_iceberg(order: Order) -> None:
+    if order.display <= 0:
+        order.visible = 0
+    else:
+        order.visible = min(order.quantity, order.display)
 
 
 def visible_quantity(order: Order) -> int:
     if order.display <= 0:
         return order.quantity
-    return min(order.quantity, order.display)
+    if order.visible <= 0:
+        return min(order.quantity, order.display)
+    return min(order.quantity, order.visible)
 
 
 @dataclass(frozen=True)
@@ -259,6 +269,7 @@ class OrderBook:
         )
 
     def _rest(self, order: Order) -> None:
+        arm_iceberg(order)
         levels = self._bids if order.side == "buy" else self._asks
         levels.setdefault(order.price, deque()).append(order)
         self._index[order.id] = (order.side, order.price)
@@ -297,7 +308,10 @@ class OrderBook:
                     del levels[price]
                 continue
 
-            fill = min(taker.quantity, maker.quantity)
+            if maker.display > 0 and maker.visible <= 0:
+                arm_iceberg(maker)
+            tip = maker.quantity if maker.display <= 0 else maker.visible
+            fill = min(taker.quantity, tip)
             trades.append(
                 Trade(
                     maker_id=maker.id,
@@ -310,8 +324,14 @@ class OrderBook:
             )
             taker.quantity -= fill
             maker.quantity -= fill
+            if maker.display > 0:
+                maker.visible -= fill
             if maker.quantity == 0:
                 queue.popleft()
                 del self._index[maker.id]
+            elif maker.display > 0 and maker.visible == 0:
+                arm_iceberg(maker)
+                queue.popleft()
+                queue.append(maker)
         if price in levels and not levels[price]:
             del levels[price]

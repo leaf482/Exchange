@@ -264,6 +264,7 @@ class OrderBook {
   using AskLevels = std::map<Price, PriceLevel>;
 
   void rest(Order order) {
+    arm_iceberg(order);
     const OrderId id = order.id;
     const RestingLocation loc{order.side, order.price};
 
@@ -314,7 +315,12 @@ class OrderBook {
         continue;
       }
 
-      const Quantity fill = std::min(taker.quantity, maker.quantity);
+      if (!maker.display.is_zero() && maker.visible.is_zero()) {
+        arm_iceberg(maker);
+      }
+
+      const Quantity tip = maker.display.is_zero() ? maker.quantity : maker.visible;
+      const Quantity fill = std::min(taker.quantity, tip);
 
       trades.push_back(Trade{
           .maker_id = maker.id,
@@ -328,10 +334,16 @@ class OrderBook {
 
       taker.quantity = taker.quantity - fill;
       maker.quantity = maker.quantity - fill;
+      if (!maker.display.is_zero()) {
+        maker.visible = maker.visible - fill;
+      }
 
       if (maker.quantity.is_zero()) {
         index_.erase(maker.id);
         level.dequeue();
+      } else if (!maker.display.is_zero() && maker.visible.is_zero()) {
+        arm_iceberg(maker);
+        level.requeue_front();
       }
     }
   }

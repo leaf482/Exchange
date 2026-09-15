@@ -57,12 +57,45 @@ TEST(OrderBookIceberg, MatchConsumesHidden) {
                                      .side = Side::Buy,
                                      .price = Price{100},
                                      .quantity = Quantity{7}});
-  ASSERT_EQ(trades.size(), 1u);
-  EXPECT_EQ(trades[0].quantity, Quantity{7});
+  std::uint64_t filled = 0;
+  for (const auto& trade : trades) {
+    filled += trade.quantity.value();
+    EXPECT_LE(trade.quantity.value(), 2u);
+  }
+  EXPECT_EQ(filled, 7u);
 
   const auto snap = book.snapshot(1);
   ASSERT_EQ(snap.asks.size(), 1u);
-  EXPECT_EQ(snap.asks[0].quantity, Quantity{2});  // min(3 remaining, display 2)
+  // Last sweep took 1 of a 2-lot tip; tip not exhausted => visible 1 remains.
+  EXPECT_EQ(snap.asks[0].quantity, Quantity{1});
+}
+
+TEST(OrderBookIceberg, TipRefillLosesPriority) {
+  OrderBook book;
+  book.add(Order{.id = OrderId{1},
+                 .side = Side::Sell,
+                 .price = Price{100},
+                 .quantity = Quantity{10},
+                 .display = Quantity{2}});
+  book.add(Order{.id = OrderId{2},
+                 .side = Side::Sell,
+                 .price = Price{100},
+                 .quantity = Quantity{1}});
+
+  // Exhaust iceberg tip -> requeues behind order 2.
+  const auto first = book.add(Order{.id = OrderId{3},
+                                    .side = Side::Buy,
+                                    .price = Price{100},
+                                    .quantity = Quantity{2}});
+  ASSERT_EQ(first.size(), 1u);
+  EXPECT_EQ(first[0].maker_id, OrderId{1});
+
+  const auto second = book.add(Order{.id = OrderId{4},
+                                     .side = Side::Buy,
+                                     .price = Price{100},
+                                     .quantity = Quantity{1}});
+  ASSERT_EQ(second.size(), 1u);
+  EXPECT_EQ(second[0].maker_id, OrderId{2});
 }
 
 TEST(OrderBookIceberg, FokSeesHiddenLiquidity) {
@@ -78,8 +111,11 @@ TEST(OrderBookIceberg, FokSeesHiddenLiquidity) {
                                      .price = Price{100},
                                      .quantity = Quantity{10},
                                      .tif = mercury::TimeInForce::Fok});
-  ASSERT_EQ(trades.size(), 1u);
-  EXPECT_EQ(trades[0].quantity, Quantity{10});
+  std::uint64_t filled = 0;
+  for (const auto& trade : trades) {
+    filled += trade.quantity.value();
+  }
+  EXPECT_EQ(filled, 10u);
   EXPECT_FALSE(book.best_ask().has_value());
 }
 

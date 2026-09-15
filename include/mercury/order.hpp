@@ -27,20 +27,32 @@ struct Order {
   Symbol symbol{0};
   bool post_only{false};   // reject if the order would take liquidity
   bool reduce_only{false};  // reject unless it shrinks existing position (no flip)
-  // Iceberg peak: 0 = fully visible. Snapshot shows min(quantity, display);
-  // matching still uses full quantity.
+  // Iceberg peak: 0 = fully visible. Non-zero => tip-refill matching; snapshot
+  // shows current tip (`visible`). Hidden size remains matchable across refills.
   Quantity display{0};
+  Quantity visible{0};  // current tip; armed on rest when display != 0
   // Discrete engine clock deadline; required when tif == Gtd (must be > now).
   std::uint64_t expire_at{0};
 
   constexpr bool operator==(const Order&) const = default;
 };
 
+inline void arm_iceberg(Order& order) {
+  if (order.display.is_zero()) {
+    order.visible = Quantity{0};
+    return;
+  }
+  order.visible = std::min(order.quantity, order.display);
+}
+
 inline Quantity visible_quantity(const Order& order) {
   if (order.display.is_zero()) {
     return order.quantity;
   }
-  return std::min(order.quantity, order.display);
+  if (order.visible.is_zero()) {
+    return std::min(order.quantity, order.display);
+  }
+  return std::min(order.quantity, order.visible);
 }
 
 struct MarketOrder {

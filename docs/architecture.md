@@ -32,8 +32,8 @@ EventLog / jsonl           Engine replay (+ reject no-ops, GTD `time` ticks)
   Pending stops may also set `expire_at` and are cancelled on the same clock.
   `post_only` rejects (no fill, no rest) if the limit would take liquidity.
   `reduce_only` rejects unless the order shrinks an existing position (no flip).
-  Iceberg: optional `display` peak; book snapshot shows peak only, matching
-  still consumes full remaining quantity.
+  Iceberg: optional `display` peak; book snapshot shows current tip; matching
+  fills the tip then refills and requeues (loses time priority) until done.
 - Market: match available liquidity, discard unfilled qty.
 - Stop: armed until last trade crosses `stop_price` (buy `>=`, sell `<=`),
   then becomes limit (`limit_price`) or market; same id; cancel removes pending.

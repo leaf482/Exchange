@@ -199,7 +199,20 @@ class FeesMassCancelTests(unittest.TestCase):
         self.assertEqual(snap.asks[0].quantity, 2)
         trades = book.add_limit(Order(id=2, side="buy", price=100, quantity=7))
         self.assertEqual(sum(t.quantity for t in trades), 7)
-        self.assertEqual(book.snapshot(1).asks[0].quantity, 2)
+        self.assertTrue(all(t.quantity <= 2 for t in trades))
+        # 2+2+2+1: last tip partially consumed
+        self.assertEqual(book.snapshot(1).asks[0].quantity, 1)
+
+    def test_iceberg_tip_refill_loses_priority(self) -> None:
+        from mercury_sim.book import OrderBook, Order
+
+        book = OrderBook()
+        book.add_limit(Order(id=1, side="sell", price=100, quantity=10, display=2))
+        book.add_limit(Order(id=2, side="sell", price=100, quantity=1))
+        first = book.add_limit(Order(id=3, side="buy", price=100, quantity=2))
+        self.assertEqual(first[0].maker_id, 1)
+        second = book.add_limit(Order(id=4, side="buy", price=100, quantity=1))
+        self.assertEqual(second[0].maker_id, 2)
 
     def test_gtd_expires_on_advance(self) -> None:
         from mercury_sim.events import LimitEvent, TimeEvent

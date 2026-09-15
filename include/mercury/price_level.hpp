@@ -40,6 +40,14 @@ class PriceLevel {
     orders_.pop_front();
   }
 
+  // Move front order to the back (iceberg tip refill loses time priority).
+  void requeue_front() {
+    assert(!orders_.empty());
+    Order order = std::move(orders_.front());
+    orders_.pop_front();
+    orders_.push_back(std::move(order));
+  }
+
   bool erase(OrderId id) {
     for (auto it = orders_.begin(); it != orders_.end(); ++it) {
       if (it->id == id) {
