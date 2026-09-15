@@ -5,8 +5,9 @@ Incremental work only. Correctness and measurement before concurrency.
 ## Progress (portfolio core)
 
 Matching / risk / accounting for a single-threaded exchange sim is complete
-for the intended portfolio core (~100%). Optional work is outside the matching
-path (net/UI) or concurrency after a measured hotspot.
+for the intended portfolio core. Optional work is outside the matching path
+(net/UI) or concurrency after a measured hotspot. See `README.md` for the
+recruiter-oriented overview.
 
 | Area | Status |
 | --- | --- |

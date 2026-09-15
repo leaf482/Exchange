@@ -74,5 +74,11 @@ EventLog / jsonl           Engine replay (+ reject no-ops, GTD `time` ticks)
 
 ## Non-goals (for now)
 
-Multithreading, lock-free structures, networking, and databases in the matching
-hot path. Correctness and measurement come first.
+- Multithreaded / shard-by-symbol matching (deferred until benches show a hotspot)
+- Lock-free structures in the matching path
+- Production networking, FIX/WebSocket gateway, or UI
+- Persistent databases beyond JSONL event files
+- Live-market connectivity or real-money trading
+
+Correctness and measurement come first. See `docs/roadmap.md` and
+`docs/latency.md`.

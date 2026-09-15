@@ -1,12 +1,112 @@
 # Mercury Exchange
 
-Deterministic, low-latency exchange simulator and trading engine in C++23.
+Mercury Exchange is a deterministic **C++23** exchange simulator built to study
+matching-engine correctness and latency before introducing concurrency. It
+implements price-time priority matching, multi-instrument order books,
+risk/accounting, advanced order semantics, deterministic JSONL replay, and an
+independent Python reference engine for parity testing.
 
-## Current scope
+The matching core is intentionally **single-threaded**. Current benchmarks remain
+in the microsecond range — including roughly **3 µs median** for a single match
+with about **32** populated symbols — so symbol sharding is deferred until
+measurement shows a real bottleneck.
 
-Matching engine (limit/market/cancel, TIF/GTD, stops, replace, mass cancel,
-iceberg tip-refill), positions/PnL, cash+margin risk, event replay, latency
-benchmarks, account equity reports, and a Python market simulator / analyzer.
+This is a **personal / learning / portfolio project**. It is not connected to
+live markets or real money.
+
+**C++23 · CMake · GoogleTest · Google Benchmark · Python · optional pybind11**
+
+Further reading: [`docs/architecture.md`](docs/architecture.md) ·
+[`docs/latency.md`](docs/latency.md) · [`docs/roadmap.md`](docs/roadmap.md)
+
+## Architecture
+
+```text
+Event / CLI / Python
+        |
+        v
+      Engine
+        |
+        +-- Risk checks
+        +-- Symbol -> OrderBook
+        |              +-- PriceLevel queues
+        |              +-- price-time (FIFO) priority
+        +-- Positions / PnL
+        +-- Balances / Fees
+        +-- EventLog / JSONL replay
+```
+
+Details and semantics: [`docs/architecture.md`](docs/architecture.md).
+
+## Key capabilities
+
+### Matching
+
+- Limit / market / cancel; partial fills; trade price = maker (resting) price
+- Time-in-force: GTC, IOC, FOK, GTD (discrete Engine clock + `expire_at`)
+- Stop orders (last-trade trigger → limit or market); pending stops may expire
+- Replace (cancel-replace; loses time priority) and mass cancel
+- Self-trade prevention (`CancelResting`), post-only, reduce-only
+- Iceberg tip-refill (display peak; refill requeues and loses time priority)
+- Multi-instrument books keyed by `Symbol`
+
+### Risk & accounting
+
+- Max order size; max absolute position including resting exposure
+- Maker/taker fees (bps); cumulative `fees_paid`
+- Cash ledger with optional enforcement, buy reserves, and short-margin checks
+- Realized / unrealized PnL (last-trade or mid mark)
+- Account equity report (cash, reserved, positions, mark inventory)
+
+### Determinism & tooling
+
+- Integer ticks / lots in the matching hot path
+- JSONL save / load / Engine replay
+- Python twin simulator and C++/Python trade parity compare
+- Optional pybind11 `mercury_engine` bindings
+- CLIs: `jsonl_replay`, `book_snapshot`, `account_report`
+
+## Correctness
+
+Approximate automated coverage (counts drift as the suite grows):
+
+- ~152 C++ GoogleTest cases
+- ~48 Python `unittest` cases
+- C++/Python trade parity via `mercury_sim.compare`
+
+The Python engine is an independent reference implementation of matching and
+accounting behavior, used to catch C++ regressions through shared JSONL events.
+
+## Benchmarks
+
+Measured with `mercury_bench` (Google Benchmark), Release build, Clang on a
+Windows host (16×4700 MHz). Reported times are **wall-clock nanoseconds** over
+**20 Google Benchmark repetitions** (not a large sample of individual order
+latencies). Prefer **median repetition** when comparing paths.
+
+| Path | median repetition (ns) |
+| --- | ---: |
+| Rest limit | 289 |
+| Match 1-lot limit | 374 |
+| Match deep book (32 levels) | 3243 |
+| Match one of ~32 symbols | 3161 |
+| Iceberg tip-refill (hidden 128, display 1) | 3879 |
+
+Current measurements do **not** show a bottleneck that justifies adding symbol
+sharding or multithreaded matching yet. Full table and methodology:
+[`docs/latency.md`](docs/latency.md).
+
+## Design choices / non-goals
+
+- Single-threaded matching is intentional; correctness and measurement come first
+- Integer ticks/lots avoid floating-point behavior in the hot path
+- Symbol sharding is deferred until benches identify a concrete hotspot
+- No production networking, FIX/WebSocket gateway, or UI
+- No persistent database beyond JSONL event files
+- No live-market connectivity or real-money trading
+- No lock-free structures or multithreaded matching
+
+Roadmap: [`docs/roadmap.md`](docs/roadmap.md).
 
 ## Build
 
@@ -25,9 +125,6 @@ cmake -S . -B build-release -DCMAKE_BUILD_TYPE=Release
 cmake --build build-release --target mercury_bench
 ./build-release/benchmarks/mercury_bench
 ```
-
-See `docs/architecture.md` for module layout, `docs/latency.md` for recorded
-numbers, and `docs/roadmap.md` for next steps.
 
 ## Python
 
